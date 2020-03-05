@@ -1,1 +1,5 @@
--U discord.py
+numpy
+beautifulsoup4
+scrapy
+tweepy
+wget

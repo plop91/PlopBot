@@ -1,7 +1,10 @@
 FROM python:3.6
-RUN python -m pip install \
-        numpy\
-        -U discord.py
 WORKDIR /usr/src/app
 COPY * ./
-CMD ["python3", "IanBot.py"]
+COPY cogs/* cogs/
+COPY tools/* tools/
+COPY tools/twitter/* tools/twitter/
+RUN python -m pip install \
+        -r requirements.txt\
+        -U discord.py
+CMD ["python3", "BotHead.py"]

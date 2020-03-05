@@ -1,0 +1,1 @@
+docker build --build-arg key=NjgwNDMwODU2ODk2MTE4ODA1.XlHUeQ.WsAXwI4SPfQlENrBy2HWgYr1r9Q -t plop91/plop_discord . && docker run --name DiscordBot plop91/plop_discord

@@ -1,0 +1,42 @@
+{
+  "servers": {
+    "plop91": 680431962149879829
+  },
+  "valid_users": [
+    "plop91#8989",
+    "plop91#7096"
+  ],
+  "username": {
+    "ian": "plop91",
+    "Bradley": "BoobtheCop",
+    "jon": "killuhand",
+    "christian": "cstrobel",
+    "frank": "Volum",
+    "justin": "xjsc16x"
+  },
+  "boolers": [
+    "BobtheCop",
+    "killuhand",
+    "cstrobel",
+    "Volum",
+    "xjsc16x"
+  ],
+  "testers": [
+    "plop91",
+    "plop9100"
+  ],
+  "command_channels": [
+    "bot_commands"
+  ],
+  "welcome_channels": [
+    "general"
+  ],
+  "boys":[
+    "Bradley",
+    "jon",
+    "christian",
+    "frank",
+    "justin",
+    "ian"
+  ]
+}
