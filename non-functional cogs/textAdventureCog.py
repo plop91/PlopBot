@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-import tools.TextAdventure.start
+from tools.TextAdventure.start import adventure
 import json
 
 def readJson(file):

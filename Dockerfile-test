@@ -7,4 +7,4 @@ COPY tools/twitter/* tools/twitter/
 RUN python -m pip install \
         -r requirements.txt\
         -U discord.py
-CMD ["python3", "BotHead.py", "false"]
+CMD ["python3", "BotHead.py", "true"]

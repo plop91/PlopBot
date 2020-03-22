@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import json
+import os
 from tools.twitter.twitterTool import twitter
 
 
@@ -30,7 +31,12 @@ class twitter(commands.Cog):
     @commands.command()
     async def factbot(self, ctx):
         await self.twitter.get_last_tweet_image("@factbot1", "factbot.jpg")
-        await ctx.message.channel.send(file=discord.File('factbot.jpg'))
+        if os.path.exists("factbot.jpg"):
+            await ctx.message.channel.send(file=discord.File('factbot.jpg'))
+            os.remove("factbot.jpg")
+        else:
+            await ctx.message.channel.send("could not get new image for some reason.")
+
 
 
 def setup(client):
