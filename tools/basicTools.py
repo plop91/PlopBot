@@ -18,3 +18,11 @@ def readJson(filename):
         data = json.load(f)
         f.close()
         return data
+
+def addToJson(filename, tag, data):
+    with open(filename, "r+") as file:
+        data = json.load(file)
+        data.update(a_dictionary)
+        file.seek(0)
+        json.dump(data, file)
+

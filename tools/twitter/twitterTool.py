@@ -4,6 +4,7 @@ from tweepy import Cursor
 from datetime import datetime, date, time, timedelta
 from collections import Counter
 import sys
+import json
 from tools.basicTools import readJson
 import wget
 import asyncio
@@ -29,6 +30,10 @@ class twitter:
                 print("statuses_count: " + str(item.statuses_count))
                 print("friends_count: " + str(item.friends_count))
                 print("followers_count: " + str(item.followers_count))
+                data_set = {"name: ": item.name, "screen_name: ": item.screen_name, "description: ": item.description,
+                            "statuses_count: ": str(item.statuses_count), "friends_count: ": str(item.friends_count),
+                            "followers_count: ": str(item.followers_count)}
+                return json.dumps(data_set)
 
     async def get_last_tweet_image(self, username, save_as="image.jpg"):
         tweets = self.auth_api.user_timeline(screen_name=username, count=1, include_rts=False,
@@ -49,7 +54,6 @@ class twitter:
                 wget.download(media_file, save_as)
             else:
                 wget.download(media_file, "image.jpg")
-
 
 
 async def main():

@@ -4,6 +4,8 @@ import os
 from tools.basicTools import readJson, readToken, readURLToken
 import sys
 
+#!/usr/bin/env python3
+
 testing = True
 networkd = False
 

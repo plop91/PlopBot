@@ -23,21 +23,20 @@ class general(commands.Cog):
         if message.author != self.client.user:
             if message.content == "hey":
                 await message.channel.send("Hi")
+
             elif message.content == "bool":
                 await message.channel.send("To bool or not to bool this is the question")
+
             elif message.content == "to bool":
                 for name in info["boolers"]:
                     member = discord.utils.get(message.guild.members, name=name)
                     await message.channel.send(f"""call to bool {member.mention}?""")
 
             elif message.content.find("fuck") != -1 and message.content.find("you") != -1:
-                for name in info["names"]:
+                for name in info["nicknames"]:
                     if message.content.find(name) != -1:
                         await message.channel.send(f"yeah fuck you {name}!!!!")
 
-            elif message.content.split(' ', 1)[0] == "echo":
-                await self.client.change_presence(status=discord.Status.online,
-                                                  activity=discord.Game(message.content.split(' ', 1)[1]))
             elif str(message.channel) in info["command_channels"]:
                 if str(message.author) in info["valid_users"]:
                     if message.content == "!stop":
@@ -51,7 +50,6 @@ class general(commands.Cog):
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         print("test")
-        await self.fetch_channel("deleted-messages").send(f"author:{message.author} message:{message.contenet}")
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -60,11 +58,20 @@ class general(commands.Cog):
                 await channel.send(f"""Who are you{member.mention}?""")
 
     @commands.command()
+    async def stop(self, ctx):
+        await self.client.logout()
+
+    @commands.command()
     async def printTag(self, ctx, tag):
         i = 1
         for name in info[tag]:
             await ctx.send(f'number {i}: {name}')
             i += 1
+
+    @commands.command()
+    async def echo(self, ctx, tag):
+        if tag:
+            await self.client.change_presence(status=discord.Status.online, activity=discord.Game(tag))
 
     @commands.command()
     async def splitTeam(self, ctx, channel1, channel2):
