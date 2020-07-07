@@ -7,5 +7,4 @@ COPY tools/twitter/* tools/twitter/
 RUN python3 -m pip install \
         -r requirements.txt\
         -U discord.py
-RUN python3 tools/downloadPunkt.py
 CMD ["python3", "BotHead.py", "false"]

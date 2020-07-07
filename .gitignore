@@ -136,3 +136,8 @@ factbot.jpg
 first_200k_2007.txt
 howto.txt
 unused cogs/
+tools/GoogleAPi/imageRecognition.py
+tools/downloadPunkt.py
+good_factbots/prune.jpg
+Dockerfile-test
+concept.txt
