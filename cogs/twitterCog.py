@@ -1,12 +1,12 @@
 import discord
 from discord.ext import commands
-from discord import guild
 import json
 import os
 from tools.twitter.twitterTool import twitter
 
 try:
     from tools.GoogleAPi.imageRecognition import imageclassifier
+
     classify = True
 except ImportError:
     classify = False
@@ -29,6 +29,7 @@ if classify is True:
     except:
         classify = False
 
+
 class twitter(commands.Cog):
 
     def __init__(self, client, info, twit, classifier=None):
@@ -45,15 +46,15 @@ class twitter(commands.Cog):
     @commands.command()
     async def getInfo(self, ctx, names):
         json_dump = self.twitter.getInfo(str(names))
-        file = discord.File(json_dump,"dump.json")
+        file = discord.File(json_dump, "dump.json")
         await ctx.message.channel.send(file=file)
-
 
     @commands.command()
     async def factbot(self, ctx, filename="factbot.jpg"):
         await self.twitter.get_last_tweet_image("@factbot1", save_as=filename)
+        channel = ctx.message.channel
         if os.path.exists(filename):
-            await ctx.message.channel.send(file=discord.File(filename))
+            await channel.send(file=discord.File(filename))
             if classify:
                 with open(filename) as f:
                     labels = await self.classifier.classify(f)
@@ -61,11 +62,12 @@ class twitter(commands.Cog):
                     if info:
                         for label in labels:
                             print(label.description)
-                            #discord.utils.get(guild.TextChannel, name='bot_commands').send(label.description)
+                            # discord.utils.get(guild.TextChannel, name='bot_commands').send(label.description)
             os.remove(filename)
+            await ctx.message.delete()
         else:
-            await ctx.message.channel.send("could not get new image for some reason / shits not working cuz")
-
+            await channel.send("could not get new image for some reason / shits not working cuz")
+            await ctx.message.delete()
 
 
 def setup(client):

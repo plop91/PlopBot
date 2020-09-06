@@ -1,9 +1,5 @@
 from tweepy import OAuthHandler
 from tweepy import API
-from tweepy import Cursor
-from datetime import datetime, date, time, timedelta
-from collections import Counter
-import sys
 import json
 from tools.basicTools import readJson
 import wget

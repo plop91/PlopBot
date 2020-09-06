@@ -1,9 +1,9 @@
 import discord
-from discord import guild
 from discord.ext import commands
 from tools.basicTools import readJson
 
-json = readJson("info.json")
+jsonname = "info.json"
+json = readJson(jsonname)
 
 
 class general(commands.Cog):
@@ -14,7 +14,7 @@ class general(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f"""Logged on as {self.client.user}!""")
+        print(f"""general cog ready!""")
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -69,26 +69,6 @@ class general(commands.Cog):
         for name in self.info[tag]:
             await ctx.send(f'number {i}: {name}')
             i += 1
-
-    @commands.command()
-    async def echo(self, ctx, tag):
-        if tag:
-            await self.client.change_presence(status=discord.Status.online, activity=discord.Game(tag))
-
-    @commands.command()
-    async def splitTeam(self, ctx, channel1, channel2):
-        voice_channel1 = discord.utils.get(ctx.message.server.channels, name=str(channel1),
-                                           type=discord.ChannelType.voice)
-        voice_channel2 = discord.utils.get(ctx.message.server.channels, name=str(channel2),
-                                           type=discord.ChannelType.voice)
-        members1 = voice_channel1.voice_members
-        members2 = voice_channel2.voice_members
-        memids = []
-        for member in members1:
-            memids.append(member.id)
-        for member in members2:
-            memids.append(member.id)
-        ctx.send(memids)
 
 
 def setup(client):

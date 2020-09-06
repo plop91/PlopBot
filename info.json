@@ -1,58 +1,69 @@
 {
-  "servers": {
-    "plop91": 680431962149879829
-  },
-  "valid_users": [
-    "plop91#8989",
-    "plop91#7096"
-  ],
-  "username": {
-    "ian": "plop91",
-    "Bradley": "Bobthecop",
-    "jon": "jonnyplank",
-    "christian": "cstrobel",
-    "frank": "Volum",
-    "justin": "xjsc16x"
-  },
-  "boolers": [
-    "BobtheCop",
-    "killuhand",
-    "cstrobel",
-    "Volum",
-    "xjsc16x"
-  ],
-  "testers": [
-    "plop91",
-    "plop9100"
-  ],
-  "command_channels": [
-    "bot_commands"
-  ],
-  "welcome_channels": [
-    "general"
-  ],
-  "boys":[
-    "bradley",
-    "jon",
-    "christian",
-    "frank",
-    "justin",
-    "ian"
-  ],
-  "nicknames":[
-    "bradley",
-    "bob",
-    "bard",
-    "brad",
-    "jon",
-    "jonny",
-    "christian",
-    "christina",
-    "frank",
-    "ricardo",
-    "justin",
-    "ian",
-    "shaggy",
-    "iafus"
-  ]
+    "servers": {
+        "plop91": 680431962149879829
+    },
+    "valid_users": [
+        "plop91#8989",
+        "plop91#7096"
+    ],
+    "username": {
+        "ian": "plop91",
+        "Bradley": "Bobthecop",
+        "jon": "jonnyplank",
+        "christian": "cstrobel",
+        "frank": "Volum",
+        "justin": "xjsc16x"
+    },
+    "boolers": [
+        "BobtheCop",
+        "killuhand",
+        "cstrobel",
+        "Volum",
+        "xjsc16x"
+    ],
+    "testers": [
+        "plop91",
+        "plop9100"
+    ],
+    "command_channels": [
+        "bot_commands"
+    ],
+    "welcome_channels": [
+        "general"
+    ],
+    "boys": [
+        "bradley",
+        "jon",
+        "christian",
+        "frank",
+        "justin",
+        "ian"
+    ],
+    "nicknames": [
+        "bradley",
+        "bob",
+        "bard",
+        "brad",
+        "jon",
+        "jonny",
+        "christian",
+        "christina",
+        "frank",
+        "ricardo",
+        "justin",
+        "ian",
+        "shaggy",
+        "iafus",
+        "zack",
+        "austin",
+        "wally",
+        "wallwork"
+    ],
+    "status": [
+        "poo",
+        "poo",
+        "test",
+        "test",
+        "poo"
+    ]
 }

@@ -4,7 +4,8 @@ COPY * ./
 COPY cogs/* cogs/
 COPY tools/* tools/
 COPY tools/twitter/* tools/twitter/
+COPY soundboard/* soundboard/
 RUN python3 -m pip install \
         -r requirements.txt\
-        -U discord.py
+        -U discord.py youtube_dl
 CMD ["python3", "BotHead.py", "false"]

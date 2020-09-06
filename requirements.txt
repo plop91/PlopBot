@@ -3,3 +3,4 @@ beautifulsoup4
 scrapy
 tweepy
 wget
+pynacl

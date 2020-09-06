@@ -21,6 +21,7 @@ class admin(commands.Cog):
         print(ctx.message.channel)
         if str(ctx.message.channel) in info["command_channels"]:
             await self.client.logout()
+            exit(0)
 
 
 
