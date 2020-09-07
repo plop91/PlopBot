@@ -1,43 +1,21 @@
 import discord
 from discord.ext import commands
-import json
 import os
 from tools.twitter.twitterTool import twitter
+from tools.basicTools import readJson
 
-try:
-    from tools.GoogleAPi.imageRecognition import imageclassifier
+twitter_tool = twitter()
 
-    classify = True
-except ImportError:
-    classify = False
-
-
-def readJson():
-    with open("info.json") as f:
-        data = json.load(f)
-        f.close()
-        return data
-
-
-twit = twitter()
-
-info = readJson()
-
-if classify is True:
-    try:
-        classifier = imageclassifier()
-    except:
-        classify = False
+json_name = "info.json"
+json = readJson(json_name)
 
 
 class twitter(commands.Cog):
 
-    def __init__(self, client, info, twit, classifier=None):
+    def __init__(self, client, info, twit):
         self.client = client
         self.info = info
         self.twitter = twit
-        if classifier is not None:
-            self.classifier = classifier
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -55,14 +33,6 @@ class twitter(commands.Cog):
         channel = ctx.message.channel
         if os.path.exists(filename):
             await channel.send(file=discord.File(filename))
-            if classify:
-                with open(filename) as f:
-                    labels = await self.classifier.classify(f)
-                    f.close()
-                    if info:
-                        for label in labels:
-                            print(label.description)
-                            # discord.utils.get(guild.TextChannel, name='bot_commands').send(label.description)
             os.remove(filename)
             await ctx.message.delete()
         else:
@@ -71,7 +41,4 @@ class twitter(commands.Cog):
 
 
 def setup(client):
-    if classify is True:
-        client.add_cog(twitter(client, info, twit, classifier=classifier))
-    elif classify is False:
-        client.add_cog(twitter(client, info, twit))
+    client.add_cog(twitter(client, json, twitter_tool))

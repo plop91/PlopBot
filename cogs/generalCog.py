@@ -2,8 +2,8 @@ import discord
 from discord.ext import commands
 from tools.basicTools import readJson
 
-jsonname = "info.json"
-json = readJson(jsonname)
+json_name = "info.json"
+json = readJson(json_name)
 
 
 class general(commands.Cog):
@@ -57,11 +57,7 @@ class general(commands.Cog):
     async def on_member_join(self, member):
         for channel in member.guild.channels:
             if str(channel) in self.info["welcome_channels"]:
-                await channel.send(f"""Who are you{member.mention}?""")
-
-    @commands.command()
-    async def stop(self, ctx):
-        await self.client.logout()
+                await channel.send(f"""Who the fuck are you {member.mention}?""")
 
     @commands.command()
     async def printTag(self, ctx, tag):

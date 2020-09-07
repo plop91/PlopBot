@@ -2,8 +2,7 @@ import discord
 from discord.ext import commands
 from tools.basicTools import readJson
 
-
-info = readJson("info.json")
+json = readJson("info.json")
 
 
 class admin(commands.Cog):
@@ -19,11 +18,10 @@ class admin(commands.Cog):
     @commands.command()
     async def kill(self, ctx):
         print(ctx.message.channel)
-        if str(ctx.message.channel) in info["command_channels"]:
+        if str(ctx.message.channel) in self.info["command_channels"]:
             await self.client.logout()
             exit(0)
 
 
-
 def setup(client):
-    client.add_cog(admin(client, info))
+    client.add_cog(admin(client, json))
