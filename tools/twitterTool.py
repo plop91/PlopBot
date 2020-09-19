@@ -8,7 +8,7 @@ import asyncio
 
 class twitter:
     def __init__(self):
-        self.info = readJson("tools/twitter/token.json")
+        self.info = readJson("tools/twittertoken.json")
 
         self.auth = OAuthHandler(self.info["apikey"], self.info["apisecret"])
         self.auth.set_access_token(self.info["accesstoken"], self.info["accesstokensecret"])
@@ -55,7 +55,7 @@ class twitter:
 async def main():
     t = twitter()
     await t.getInfo(["@factbot1"])
-    await t.get_tweet_image(["@factbot1"])
+    await t.get_last_tweet_image(["@factbot1"])
 
 
 if __name__ == "__main__":

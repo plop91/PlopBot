@@ -1,4 +1,3 @@
-import discord
 from discord.ext import commands
 from tools.basicTools import readJson
 
@@ -15,7 +14,7 @@ class admin(commands.Cog):
     async def on_ready(self):
         print(f"""admin cog ready!""")
 
-    @commands.command()
+    @commands.command(brief="Admin only command: Turn the bot off.")
     async def kill(self, ctx):
         print(ctx.message.channel)
         if str(ctx.message.channel) in self.info["command_channels"]:

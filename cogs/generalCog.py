@@ -1,6 +1,7 @@
 import discord
-from discord.ext import commands
-from tools.basicTools import readJson
+from discord.ext import commands, tasks
+from tools.basicTools import readJson, addToJson
+import random
 
 json_name = "info.json"
 json = readJson(json_name)
@@ -15,14 +16,16 @@ class general(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print(f"""general cog ready!""")
+        self.change_status.start()
 
     @commands.Cog.listener()
     async def on_message(self, message):
         _id = message.guild
         message.content = message.content.strip().lower()
-        print(f"""Message from {message.author}: {message.content}""")
+        if message.content:
+            print(f"""Message from {message.author}: {message.content}""")
         if message.author != self.client.user:
-            if message.content == "hey":
+            if message.content.lower() == "hey":
                 await message.channel.send("Hi")
 
             elif message.content == "bool":
@@ -59,12 +62,31 @@ class general(commands.Cog):
             if str(channel) in self.info["welcome_channels"]:
                 await channel.send(f"""Who the fuck are you {member.mention}?""")
 
-    @commands.command()
-    async def printTag(self, ctx, tag):
-        i = 1
-        for name in self.info[tag]:
-            await ctx.send(f'number {i}: {name}')
-            i += 1
+    @commands.command(brief="Change the bot presence to the argument string.")
+    async def echo(self, ctx, tag):
+        if tag:
+            await self.client.change_presence(status=discord.Status.online, activity=discord.Game(tag))
+            addToJson(json_name, "status", tag)
+            await ctx.message.delete()
+
+    @commands.command(brief="List the previous statuses the bot will loop through.")
+    async def status(self, ctx):
+
+        u_json = readJson(json_name)
+        s = ""
+        for status in u_json["status"]:
+            s += status + ", "
+
+        embed_var = discord.Embed(title="Status:", description=s, color=0x00ff00)
+
+        await ctx.channel.send(embed=embed_var)
+        await ctx.message.delete()
+
+    @tasks.loop(seconds=0, minutes=0, hours=1)
+    async def change_status(self):
+        u_json = readJson(json_name)
+        await self.client.change_presence(status=discord.Status.online, activity=discord.Game(
+            u_json["status"][random.randint(0, len(u_json["status"]) - 1)]))
 
 
 def setup(client):

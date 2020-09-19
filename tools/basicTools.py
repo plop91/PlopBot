@@ -28,6 +28,4 @@ def addToJson(filename, tag, insert):
         data = json.load(file)
         data[tag].append(insert)
         file.seek(0)
-        json.dump(data,file,indent=4)
-
-
+        json.dump(data, file, indent=4)

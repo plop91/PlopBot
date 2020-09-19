@@ -4,7 +4,6 @@ COPY * ./
 COPY cogs/* cogs/
 COPY tools/* tools/
 COPY tools/twitter/* tools/twitter/
-COPY soundboard/* soundboard/
 RUN apt-get update && apt-get install -y ffmpeg
 RUN python3 -m pip install \
         -r requirements.txt\

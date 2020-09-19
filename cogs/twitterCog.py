@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import os
-from tools.twitter.twitterTool import twitter
+from tools.twitterTool import twitter
 from tools.basicTools import readJson
 
 twitter_tool = twitter()
@@ -21,13 +21,13 @@ class twitter(commands.Cog):
     async def on_ready(self):
         print(f"""twitter cog ready!""")
 
-    @commands.command()
+    @commands.command(brief="Dumps info about the twitter account in the argument.")
     async def getInfo(self, ctx, names):
         json_dump = self.twitter.getInfo(str(names))
         file = discord.File(json_dump, "dump.json")
         await ctx.message.channel.send(file=file)
 
-    @commands.command()
+    @commands.command(brief="Retrieves the most recent post from factbot.")
     async def factbot(self, ctx, filename="factbot.jpg"):
         await self.twitter.get_last_tweet_image("@factbot1", save_as=filename)
         channel = ctx.message.channel
