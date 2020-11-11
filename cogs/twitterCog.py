@@ -1,13 +1,11 @@
-import discord
 from discord.ext import commands
+from utility.twitter import twitter
+import settings
+import discord
 import os
-from tools.twitterTool import twitter
-from tools.basicTools import readJson
+import datetime
 
 twitter_tool = twitter()
-
-json_name = "info.json"
-json = readJson(json_name)
 
 
 class twitter(commands.Cog):
@@ -19,7 +17,7 @@ class twitter(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f"""twitter cog ready!""")
+        print(f"""{datetime.datetime.now()}: twitter cog ready!""")
 
     @commands.command(brief="Dumps info about the twitter account in the argument.")
     async def getInfo(self, ctx, names):
@@ -41,4 +39,4 @@ class twitter(commands.Cog):
 
 
 def setup(client):
-    client.add_cog(twitter(client, json, twitter_tool))
+    client.add_cog(twitter(client, settings.json, twitter_tool))

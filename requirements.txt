@@ -5,3 +5,4 @@ tweepy
 wget
 pynacl
 mysql-connector-python
+ffmpeg-python

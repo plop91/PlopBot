@@ -1,14 +1,14 @@
 from tweepy import OAuthHandler
 from tweepy import API
 import json
-from tools.basicTools import readJson
+from utility.tools import readJson
 import wget
 import asyncio
 
 
 class twitter:
     def __init__(self):
-        self.info = readJson("tools/twittertoken.json")
+        self.info = readJson("utility/twittertoken.json")
 
         self.auth = OAuthHandler(self.info["apikey"], self.info["apisecret"])
         self.auth.set_access_token(self.info["accesstoken"], self.info["accesstokensecret"])
