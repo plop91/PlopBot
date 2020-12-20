@@ -1,10 +1,7 @@
 import random
 import discord
-import datetime
+import settings
 from discord.ext import commands
-from utility.tools import readJson
-
-json = readJson("info.json")
 
 HANGMAN_PICS = ['''
    +---+
@@ -51,13 +48,12 @@ class game(commands.Cog):
     hangman_guesses = ""
     hangman_wrong_guesses = 0
 
-    def __init__(self, client, info):
+    def __init__(self, client):
         self.client = client
-        self.info = info
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f"""{datetime.datetime.now()}: game cog ready!""")
+        settings.logger.info(f"game cog ready!")
 
     @commands.command()
     async def hangman(self, ctx, command):
@@ -111,4 +107,4 @@ class game(commands.Cog):
 
 
 def setup(client):
-    client.add_cog(game(client, json))
+    client.add_cog(game(client))

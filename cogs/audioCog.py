@@ -7,7 +7,6 @@ import youtube_dl
 import discord
 import ffmpeg
 import shutil
-import datetime
 import settings
 
 ydl_opts = {
@@ -30,7 +29,7 @@ class audio(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f"""{datetime.datetime.now()}: audio cog ready!""")
+        settings.logger.info(f"audio cog ready!")
 
     # This listener is to facilitate the ability to download an mp3 for use in the soundboard.
     @commands.Cog.listener()
@@ -39,17 +38,15 @@ class audio(commands.Cog):
             for attachment in message.attachments:
                 if attachment.filename.endswith(".mp3"):
                     if os.path.exists(f"./soundboard/{attachment.filename.lower().replace(' ', '')}"):
-                        print(f"{datetime.datetime.now()}: {message.author} tried to add a mp3 file: {attachment}"
-                              f" but a file with that name already exists.")
+                        settings.logger.info(f"{message.author} tried to add a mp3 file: {attachment} but a file with that name already exists.")
                         await message.channel.send("A clip with that name already exists please rename it to upload.")
                     elif os.path.exists(f"./soundboard/raw/{attachment.filename.lower().replace(' ', '')}"):
-                        print(f"{datetime.datetime.now()}: {message.author} tried to add a mp3 file: {attachment} "
-                              f"but a file with that name already exists in raw clips.")
+                        settings.logger.info(f"{message.author} tried to add a mp3 file: {attachment} but a file with that name already exists in raw clips.")
                         await message.channel.send("A clip with that name has already been uploaded and is waiting "
                                                    "for admin approval. Notify an admin to resolve.")
                     else:
                         filename = attachment.filename.lower().replace(' ', '').replace('_', '')
-                        print(f"{datetime.datetime.now()}: {message.author} added a mp3 file: {attachment}")
+                        settings.logger.info(f"{message.author} added a mp3 file: {attachment}")
                         await message.channel.send(
                             f"The audio is being downloaded and should be ready shortly the name of the clip will be: "
                             f"{filename.replace('.mp3', '')}")
@@ -62,37 +59,12 @@ class audio(commands.Cog):
                         else:
                             shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
 
-    # @commands.command(pass_context=True, aliases=['j', 'JOIN', 'J'],
-    #                   brief="Make the bot Join the voice server. alt command = 'j'",
-    #                   description="Makes the bot join the voice server this is required to use the play, youtube, "
-    #                               "leave, pause and resume functions")
-    # async def join(self, ctx):
-    #     print(f"""{datetime.datetime.now()}: join from {ctx.author}""")
-    #
-    #     channel = ctx.message.author.voice.channel
-    #     voice = get(self.client.voice_clients, guild=ctx.guild)
-    #
-    #     if voice and voice.is_connected():
-    #         await voice.move_to(channel)
-    #     else:
-    #         voice = await channel.connect()
-    #
-    #     await voice.disconnect()
-    #
-    #     if voice and voice.is_connected():
-    #         await voice.move_to(channel)
-    #     else:
-    #         await channel.connect()
-    #         print(f"{datetime.datetime.now()}: The bot has connected to {channel}\n")
-    #
-    #     await ctx.message.delete()
-
     @commands.command(pass_context=True, aliases=['p', 'PLAY', 'P'],
                       brief="Plays a clip with the same name as the argument. alt command = 'p'",
                       description="Makes the bot play one of the soundboard files. For example if you wanted to play "
                                   "a file named hammer you would enter '.play hammer'/'.p hammer'")
     async def play(self, ctx, filename=None):
-        print(f"""{datetime.datetime.now()}: play from {ctx.author} :{filename}""")
+        settings.logger.info(f"play from {ctx.author} :{filename}")
 
         if filename is None:
             embed_var = discord.Embed(title="Soundboard files", description="type '.play ' followed by a name to play "
@@ -136,25 +108,23 @@ class audio(commands.Cog):
             await ctx.message.delete()
 
         except AttributeError as e:
-            print(f"""{datetime.datetime.now()}:""")
-            print(e)
             await ctx.send(str(ctx.author.name) + " you are not in a channel.")
             await ctx.message.delete()
 
         except PermissionError as e:
-            print(f"""{datetime.datetime.now()}:""")
-            print(e)
+            settings.logger.warning(f"Permission Error:")
+            settings.logger.info(e)
             await ctx.send("Permission error - let ian know if you see this")
 
         except ClientException as e:
-            print(f"""{datetime.datetime.now()}:""")
-            print(e)
+            settings.logger.info(f"ClientException:")
+            settings.logger.info(e)
             await ctx.send("The bot is not in the voice channel use '.join' or '.j' to make the bot join.")
             await ctx.message.delete()
 
         except Exception as e:
-            print(f"""{datetime.datetime.now()}:""")
-            print(e)
+            settings.logger.info(f"unknown exception")
+            settings.logger.info(e)
             await ctx.send("unknown error - let a admin know if you see this")
 
     @commands.command(pass_context=True, aliases=['yt', 'YOUTUBE', 'YT'],
@@ -169,14 +139,14 @@ class audio(commands.Cog):
             if song_there:
                 os.remove("youtube.mp3")
         except PermissionError:
-            print(f"{datetime.datetime.now()}: Trying to delete song file, but it's being played")
+            settings.logger.info(f"Trying to delete song file, but it's being played")
             await ctx.message.delete()
             return
 
         voice = get(self.client.voice_clients, guild=ctx.guild)
 
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            print(f"{datetime.datetime.now()}: Downloading audio now :: {url}\n")
+            settings.logger.info(f"Downloading audio now :: {url}")
             ydl.download([url])
 
         voice.play(discord.FFmpegPCMAudio("youtube.mp3"))
@@ -187,16 +157,16 @@ class audio(commands.Cog):
                       brief="Make the bot leave the voice server. alt command = 'l'",
                       description="Makes the bot leave the voice server.")
     async def leave(self, ctx):
-        print(f"""{datetime.datetime.now()}: leave from {ctx.author}""")
+        settings.logger.info(f"leave from {ctx.author}")
 
         channel = ctx.message.author.voice.channel
         voice = get(self.client.voice_clients, guild=ctx.guild)
 
         if voice and voice.is_connected():
             await voice.disconnect()
-            print(f"{datetime.datetime.now()}: The bot has left {channel}")
+            settings.logger.info(f"The bot has left {channel}")
         else:
-            print(f"{datetime.datetime.now()}: Bot was told to leave voice channel, but was not in one")
+            settings.logger.info(f"Bot was told to leave voice channel, but was not in one!")
             await ctx.send("Don't think I am in a voice channel")
 
         await ctx.message.delete()
@@ -204,7 +174,7 @@ class audio(commands.Cog):
     @commands.command(pass_context=True, aliases=['PAUSE'], brief="Pause everything the bot is playing",
                       description="Makes the bot pause anything that it is playing.")
     async def pause(self, ctx):
-        print(f"""{datetime.datetime.now()}: pause from {ctx.author}""")
+        settings.logger.info(f"pause from {ctx.author}")
 
         voice = get(self.client.voice_clients, guild=ctx.guild)
 
@@ -219,7 +189,7 @@ class audio(commands.Cog):
                       brief="Resume playing paused Music. alt command = 'r'",
                       description="Makes the bot resume playing any paused audio.")
     async def resume(self, ctx):
-        print(f"""{datetime.datetime.now()}: resume from {ctx.author}""")
+        settings.logger.info(f"resume from {ctx.author}")
 
         voice = get(self.client.voice_clients, guild=ctx.guild)
 
@@ -237,7 +207,7 @@ class audio(commands.Cog):
                                                          "it was playing and when it "
                                                          "stopped.")
     async def stop(self, ctx):
-        print(f"""{datetime.datetime.now()}: stop from {ctx.author}""")
+        settings.logger.info(f"stop from {ctx.author}")
 
         voice = get(self.client.voice_clients, guild=ctx.guild)
 
@@ -255,7 +225,7 @@ class audio(commands.Cog):
             return await ctx.send("Not connected to a voice channel.")
         volume_adjusted = volume / 100
         self.volume = volume_adjusted
-        print(f"""{datetime.datetime.now()}: volume changed to {volume_adjusted} by {ctx.author}""")
+        settings.logger.info(f"volume changed to {volume_adjusted} by {ctx.author}")
         await ctx.send(f"Changed volume to {volume}%")
 
     @play.before_invoke
