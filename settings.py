@@ -3,6 +3,7 @@ import mysql.connector
 import sys
 
 global json
+global db
 global my_cursor
 global token
 

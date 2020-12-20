@@ -1,5 +1,5 @@
 from discord.ext import commands, tasks
-from utility.tools import readJson, addToJson
+from utility.tools import addToJson
 import settings
 import discord
 import random
@@ -8,9 +8,8 @@ import datetime
 
 class general(commands.Cog):
 
-    def __init__(self, client, info):
+    def __init__(self, client):
         self.client = client
-        self.info = info
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -35,7 +34,7 @@ class general(commands.Cog):
         print(f'{datetime.datetime.now()}: member joined- {member}')
 
         for channel in member.guild.channels:
-            if str(channel) in self.info["welcome_channels"]:
+            if str(channel) in settings.json["welcome_channels"]:
                 await channel.send(f"""Who the fuck are you {member.mention}?""")
 
     @commands.command(brief="Change the bot presence to the argument string.")
@@ -58,7 +57,7 @@ class general(commands.Cog):
         await ctx.channel.send(embed=embed_var)
         await ctx.message.delete()
 
-    @tasks.loop(seconds=0, minutes=0, hours=1)
+    @tasks.loop(seconds=0, minutes=0, hours=10)
     async def change_status(self):
         print(f"""{datetime.datetime.now()}: status changed automatically""")
         await self.client.change_presence(status=discord.Status.online, activity=discord.Game(
@@ -66,4 +65,4 @@ class general(commands.Cog):
 
 
 def setup(client):
-    client.add_cog(general(client, settings.json))
+    client.add_cog(general(client))

@@ -5,9 +5,8 @@ import datetime
 
 class admin(commands.Cog):
 
-    def __init__(self, client, info):
+    def __init__(self, client):
         self.client = client
-        self.info = info
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -16,10 +15,10 @@ class admin(commands.Cog):
     @commands.command(brief="Admin only command: Turn the bot off.")
     async def kill(self, ctx):
         print(f"""{datetime.datetime.now()}: kill from {ctx.author}""")
-        if str(ctx.message.channel) in self.info["command_channels"]:
+        if str(ctx.message.channel) in settings.json["command_channels"]:
             await self.client.logout()
             exit(0)
 
 
 def setup(client):
-    client.add_cog(admin(client, settings.json))
+    client.add_cog(admin(client))

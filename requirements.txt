@@ -6,3 +6,4 @@ wget
 pynacl
 mysql-connector-python
 ffmpeg-python
+spotdl

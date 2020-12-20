@@ -6,7 +6,7 @@ import wget
 import asyncio
 
 
-class twitter:
+class twit:
     def __init__(self):
         self.info = readJson("utility/twittertoken.json")
 
@@ -53,7 +53,7 @@ class twitter:
 
 
 async def main():
-    t = twitter()
+    t = twit()
     await t.getInfo(["@factbot1"])
     await t.get_last_tweet_image(["@factbot1"])
 
