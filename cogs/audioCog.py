@@ -27,6 +27,7 @@ class audio(commands.Cog):
     def __init__(self, client):
         self.client = client
 
+    # Logs that the cog was loaded properly
     @commands.Cog.listener()
     async def on_ready(self):
         settings.logger.info(f"audio cog ready!")
@@ -38,10 +39,14 @@ class audio(commands.Cog):
             for attachment in message.attachments:
                 if attachment.filename.endswith(".mp3"):
                     if os.path.exists(f"./soundboard/{attachment.filename.lower().replace(' ', '')}"):
-                        settings.logger.info(f"{message.author} tried to add a mp3 file: {attachment} but a file with that name already exists.")
+                        settings.logger.info(
+                            f"{message.author} tried to add a mp3 file: {attachment} but a file with that name "
+                            f"already exists.")
                         await message.channel.send("A clip with that name already exists please rename it to upload.")
                     elif os.path.exists(f"./soundboard/raw/{attachment.filename.lower().replace(' ', '')}"):
-                        settings.logger.info(f"{message.author} tried to add a mp3 file: {attachment} but a file with that name already exists in raw clips.")
+                        settings.logger.info(
+                            f"{message.author} tried to add a mp3 file: {attachment} but a file with that name "
+                            f"already exists in raw clips.")
                         await message.channel.send("A clip with that name has already been uploaded and is waiting "
                                                    "for admin approval. Notify an admin to resolve.")
                     else:
@@ -59,6 +64,7 @@ class audio(commands.Cog):
                         else:
                             shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
 
+    # Plays an mp3 from the library of downloaded mp3's
     @commands.command(pass_context=True, aliases=['p', 'PLAY', 'P'],
                       brief="Plays a clip with the same name as the argument. alt command = 'p'",
                       description="Makes the bot play one of the soundboard files. For example if you wanted to play "
@@ -102,31 +108,34 @@ class audio(commands.Cog):
                 if os.path.exists(f"soundboard/{filename.lower().strip()}.mp3"):
                     voice.play(discord.FFmpegPCMAudio(source=f"soundboard/{filename.lower().strip()}.mp3"))
                     voice.source = discord.PCMVolumeTransformer(voice.source)
-                    voice.source.volume = self.volume
+                    voice.source.volume = int(self.volume)
                 else:
                     await ctx.send("Clip with that name does not exist")
             await ctx.message.delete()
 
         except AttributeError as e:
+            settings.logger.info(f"Attribute Error:")
+            settings.logger.info(e)
             await ctx.send(str(ctx.author.name) + " you are not in a channel.")
             await ctx.message.delete()
 
         except PermissionError as e:
             settings.logger.warning(f"Permission Error:")
-            settings.logger.info(e)
+            settings.logger.warning(e)
             await ctx.send("Permission error - let ian know if you see this")
 
         except ClientException as e:
-            settings.logger.info(f"ClientException:")
-            settings.logger.info(e)
+            settings.logger.warning(f"Client Exception:")
+            settings.logger.warning(e)
             await ctx.send("The bot is not in the voice channel use '.join' or '.j' to make the bot join.")
             await ctx.message.delete()
 
         except Exception as e:
-            settings.logger.info(f"unknown exception")
-            settings.logger.info(e)
+            settings.logger.warning(f"unknown exception")
+            settings.logger.warning(e)
             await ctx.send("unknown error - let a admin know if you see this")
 
+    # Plays the audio of the provided youtube link.
     @commands.command(pass_context=True, aliases=['yt', 'YOUTUBE', 'YT'],
                       brief="Plays the youtube clip at the url in the argument. alt command = 'yt'",
                       description="Makes the bot play a youtube videos audio. For example if you wanted to play the "
@@ -153,6 +162,7 @@ class audio(commands.Cog):
         voice.source = discord.PCMVolumeTransformer(voice.source)
         voice.source.volume = self.volume
 
+    # Forces the bot to leave whatever voice channel it is in.
     @commands.command(pass_context=True, aliases=['l', 'LEAVE', 'L'],
                       brief="Make the bot leave the voice server. alt command = 'l'",
                       description="Makes the bot leave the voice server.")
@@ -171,6 +181,7 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
+    # Pauses whatever the bot is playing
     @commands.command(pass_context=True, aliases=['PAUSE'], brief="Pause everything the bot is playing",
                       description="Makes the bot pause anything that it is playing.")
     async def pause(self, ctx):
@@ -185,6 +196,7 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
+    # Resumes playing if the bot is paused
     @commands.command(pass_context=True, aliases=['r', 'RESUME', 'R'],
                       brief="Resume playing paused Music. alt command = 'r'",
                       description="Makes the bot resume playing any paused audio.")
@@ -200,6 +212,7 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
+    # Stops playing whatever is playing
     @commands.command(pass_context=True, aliases=['s', 'STOP', 'S'],
                       brief="Stop any Music the bot is playing or has paused. alt "
                             "command = 's'", description="Makes the bot stop playing "
@@ -218,6 +231,7 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
+    # Change the volume the bot plays back at
     @commands.command(pass_context=True, aliases=['v', 'VOLUME', 'V', 'vol'], brief="changes the volume of the bot",
                       description="Changes the volume of the bot.")
     async def volume(self, ctx, volume: int):
@@ -228,6 +242,7 @@ class audio(commands.Cog):
         settings.logger.info(f"volume changed to {volume_adjusted} by {ctx.author}")
         await ctx.send(f"Changed volume to {volume}%")
 
+    # Verifies the bot is in a voice channel before it tries to play something new.
     @play.before_invoke
     @youtube.before_invoke
     async def ensure_voice(self, ctx):

@@ -136,3 +136,5 @@ Dockerfile-test
 concept.txt
 *.mp3
 */twittertoken.json
+*.docx
+*.json

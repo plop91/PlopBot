@@ -11,17 +11,12 @@ class twitter(commands.Cog):
         self.client = client
         self.twitter = twit()
 
+    # Logs that the cog was loaded properly
     @commands.Cog.listener()
     async def on_ready(self):
         settings.logger.info(f"twit cog ready!")
 
-    @commands.command(brief="Dumps info about the twit account in the argument.")
-    async def getInfo(self, ctx, names):
-        json_dump = self.twitter.getInfo(str(names))
-        file = discord.File(json_dump, "dump.json")
-        settings.logger.info(f"get info : {ctx.author}")
-        await ctx.message.channel.send(file=file)
-
+    # gets the most recently tweeted image from the twitter account @factbot1
     @commands.command(brief="Retrieves the most recent post from factbot.")
     async def factbot(self, ctx, filename="factbot.jpg"):
         settings.logger.info(f"factbot : {ctx.author}")
