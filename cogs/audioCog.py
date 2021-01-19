@@ -1,6 +1,7 @@
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.errors import ClientException
 from discord.utils import get
+import asyncio
 import os
 import random
 import youtube_dl
@@ -9,30 +10,111 @@ import ffmpeg
 import shutil
 import settings
 
-ydl_opts = {
+# Suppress noise about console usage from errors
+youtube_dl.utils.bug_reports_message = lambda: ''
+
+ytdl_format_options = {
     'format': 'bestaudio/best',
-    'outtmpl': './youtube.mp3',
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
+    'outtmpl': 'youtube/%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0'  # bind to ipv4 since ipv6 addresses cause issues sometimes
 }
+
+ffmpeg_options = {
+    'options': '-vn'
+}
+
+ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+
+
+class YTDLSource(discord.PCMVolumeTransformer):
+    def __init__(self, source, *, data, volume=0.5):
+        super().__init__(source, volume)
+
+        self.data = data
+
+        self.title = data.get('title')
+        self.url = data.get('url')
+
+    @classmethod
+    async def from_url(cls, url, *, loop=None, stream=False):
+        loop = loop or asyncio.get_event_loop()
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+
+        if 'entries' in data:
+            # take first item from a playlist
+            data = data['entries'][0]
+
+        filename = data['url'] if stream else ytdl.prepare_filename(data)
+        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
+
+
+def clean_youtube():
+    settings.logger.info(f"cleaning youtube folder!")
+    for f in os.listdir("youtube"):
+        os.remove(os.path.join("youtube", f))
+
+
+async def play_clip(client, filename):
+    try:
+        if filename == "random":
+            sounds = []
+            for file in os.listdir("soundboard"):
+                if file.endswith(".mp3"):
+                    sounds.append(file)
+            source = discord.PCMVolumeTransformer(
+                discord.FFmpegPCMAudio(source=f"soundboard/{random.choice(sounds)}"))
+        else:
+            if os.path.exists(f"soundboard/{filename.lower().strip()}.mp3"):
+                source = discord.PCMVolumeTransformer(
+                    discord.FFmpegPCMAudio(source=f"soundboard/{filename.lower().strip()}.mp3"))
+            else:
+                return
+        client.play(source)
+
+    except AttributeError as e:
+        settings.logger.info(f"Attribute Error:")
+        settings.logger.info(e)
+
+    except PermissionError as e:
+        settings.logger.warning(f"Permission Error:")
+        settings.logger.warning(e)
+
+    except ClientException as e:
+        settings.logger.warning(f"Client Exception:")
+        settings.logger.warning(e)
+
+    except Exception as e:
+        settings.logger.warning(f"unknown exception")
+        settings.logger.warning(e)
 
 
 class audio(commands.Cog):
     volume = 0.7
-    queues = {}
 
     def __init__(self, client):
         self.client = client
+        self.maintenance.start()
 
-    # Logs that the cog was loaded properly
+    # Logs that the cog was loaded properly and empties the youtube folder.
     @commands.Cog.listener()
     async def on_ready(self):
         settings.logger.info(f"audio cog ready!")
 
-    # This listener is to facilitate the ability to download an mp3 for use in the soundboard.
+    # Logs the bot turning off
+    @commands.Cog.listener()
+    async def on_disconnect(self):
+        clean_youtube()
+
+    # This listener is to facilitate the ability to download an mp3 for use in the soundboard as well as interprets
+    # webhooks from my website.
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.attachments:
@@ -57,12 +139,42 @@ class audio(commands.Cog):
                             f"{filename.replace('.mp3', '')}")
                         await attachment.save(f"./soundboard/raw/{filename}")
                         audio_json = ffmpeg.probe(f"./soundboard/raw/{filename}")
+
                         # the jon rule - if the clip is too long i have to review it
                         if float(audio_json['streams'][0]['duration']) >= 60:
                             await message.channel.send("The clip is longer than a minute and will need to be reviewed "
                                                        "before it can be played, thank jon for this feature.")
                         else:
-                            shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
+                            try:
+                                settings.soundboard_db.add_db_entry(filename.lower(), filename.replace(".mp3", "").lower())
+                                shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
+                            except ValueError:
+                                await message.channel.send("A file with that name already existed in the database, "
+                                                           "contact an admin!")
+                                settings.logger.warning("a file with the same name exists in the database but not on "
+                                                        "the server")
+
+
+        else:
+            data = message.content.split(':')
+            if data[0] == "www.sodersjerna.com":
+                member = discord.utils.get(message.guild.members, name=data[1])
+                if member is not None and member.voice is not None:
+                    for client in self.client.voice_clients:
+                        if client.channel.id == member.voice.channel.id:
+                            if data[2] == "stop":
+                                if client.is_playing():
+                                    client.stop()
+                            elif data[2] == "pause":
+                                if client.is_playing():
+                                    client.pause()
+                            elif data[2] == "resume":
+                                if client.is_paused():
+                                    client.resume()
+                            elif data[2] == "play":
+                                await play_clip(client, data[3])
+                            return
+                    await member.voice.chanel.connect()
 
     # Plays an mp3 from the library of downloaded mp3's
     @commands.command(pass_context=True, aliases=['p', 'PLAY', 'P'],
@@ -70,6 +182,7 @@ class audio(commands.Cog):
                       description="Makes the bot play one of the soundboard files. For example if you wanted to play "
                                   "a file named hammer you would enter '.play hammer'/'.p hammer'")
     async def play(self, ctx, filename=None):
+
         settings.logger.info(f"play from {ctx.author} :{filename}")
 
         if filename is None:
@@ -93,74 +206,30 @@ class audio(commands.Cog):
 
             return
 
-        # noinspection PyBroadException
-        try:
-            voice = get(self.client.voice_clients, guild=ctx.guild)
+        await play_clip(ctx.voice_client, filename)
+        await ctx.message.delete()
 
-            if filename == "random":
-                sounds = []
-                for file in os.listdir("soundboard"):
-                    if file.endswith(".mp3"):
-                        sounds.append(file)
-                voice.play(discord.FFmpegPCMAudio(source=f"soundboard/{random.choice(sounds)}"))
-
-            else:
-                if os.path.exists(f"soundboard/{filename.lower().strip()}.mp3"):
-                    voice.play(discord.FFmpegPCMAudio(source=f"soundboard/{filename.lower().strip()}.mp3"))
-                    voice.source = discord.PCMVolumeTransformer(voice.source)
-                    voice.source.volume = int(self.volume)
-                else:
-                    await ctx.send("Clip with that name does not exist")
-            await ctx.message.delete()
-
-        except AttributeError as e:
-            settings.logger.info(f"Attribute Error:")
-            settings.logger.info(e)
-            await ctx.send(str(ctx.author.name) + " you are not in a channel.")
-            await ctx.message.delete()
-
-        except PermissionError as e:
-            settings.logger.warning(f"Permission Error:")
-            settings.logger.warning(e)
-            await ctx.send("Permission error - let ian know if you see this")
-
-        except ClientException as e:
-            settings.logger.warning(f"Client Exception:")
-            settings.logger.warning(e)
-            await ctx.send("The bot is not in the voice channel use '.join' or '.j' to make the bot join.")
-            await ctx.message.delete()
-
-        except Exception as e:
-            settings.logger.warning(f"unknown exception")
-            settings.logger.warning(e)
-            await ctx.send("unknown error - let a admin know if you see this")
-
-    # Plays the audio of the provided youtube link.
+    # Downloads and plays the audio of the provided youtube link. Plays from a url (almost anything youtube_dl supports)
     @commands.command(pass_context=True, aliases=['yt', 'YOUTUBE', 'YT'],
                       brief="Plays the youtube clip at the url in the argument. alt command = 'yt'",
                       description="Makes the bot play a youtube videos audio. For example if you wanted to play the "
                                   "youtube video at 'https://www.youtube.com/watch?v=1234' you would enter '.youtube "
                                   "https://www.youtube.com/watch?v=1234'/'.yt https://www.youtube.com/watch?v=1234'")
-    async def youtube(self, ctx, url):
-        try:
-            song_there = os.path.isfile("youtube.mp3")
+    async def youtube(self, ctx, *, url):
+        settings.logger.info(f"youtube from {ctx.author} :{url}")
+        async with ctx.typing():
+            player = await YTDLSource.from_url(url, loop=self.client.loop)
+            ctx.voice_client.play(player)
+        await ctx.message.delete()
 
-            if song_there:
-                os.remove("youtube.mp3")
-        except PermissionError:
-            settings.logger.info(f"Trying to delete song file, but it's being played")
-            await ctx.message.delete()
-            return
-
-        voice = get(self.client.voice_clients, guild=ctx.guild)
-
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            settings.logger.info(f"Downloading audio now :: {url}")
-            ydl.download([url])
-
-        voice.play(discord.FFmpegPCMAudio("youtube.mp3"))
-        voice.source = discord.PCMVolumeTransformer(voice.source)
-        voice.source.volume = self.volume
+    @commands.command(pass_context=True, aliases=[],
+                      brief="Streams from a url (same as yt, but doesn't pre-download)",
+                      description="")
+    async def stream(self, ctx, *, url):
+        async with ctx.typing():
+            player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True)
+            ctx.voice_client.play(player)
+        await ctx.message.delete()
 
     # Forces the bot to leave whatever voice channel it is in.
     @commands.command(pass_context=True, aliases=['l', 'LEAVE', 'L'],
@@ -204,7 +273,6 @@ class audio(commands.Cog):
         settings.logger.info(f"resume from {ctx.author}")
 
         voice = get(self.client.voice_clients, guild=ctx.guild)
-
         if voice and voice.is_paused():
             voice.resume()
         else:
@@ -235,12 +303,15 @@ class audio(commands.Cog):
     @commands.command(pass_context=True, aliases=['v', 'VOLUME', 'V', 'vol'], brief="changes the volume of the bot",
                       description="Changes the volume of the bot.")
     async def volume(self, ctx, volume: int):
+        """Changes the player's volume"""
+
         if ctx.voice_client is None:
             return await ctx.send("Not connected to a voice channel.")
-        volume_adjusted = volume / 100
-        self.volume = volume_adjusted
-        settings.logger.info(f"volume changed to {volume_adjusted} by {ctx.author}")
-        await ctx.send(f"Changed volume to {volume}%")
+
+        ctx.voice_client.source.volume = volume / 100
+        settings.logger.info(f"volume changed to {volume} by {ctx.author}")
+        await ctx.message.delete()
+        await ctx.send(f"Changed volume to {volume}")
 
     # Verifies the bot is in a voice channel before it tries to play something new.
     @play.before_invoke
@@ -254,6 +325,12 @@ class audio(commands.Cog):
                 raise commands.CommandError("Author not connected to a voice channel.")
         elif ctx.voice_client.is_playing():
             ctx.voice_client.stop()
+
+    # changes the bot to a randomly provided status.
+    @tasks.loop(seconds=0, minutes=0, hours=24)
+    async def maintenance(self):
+        clean_youtube()
+        settings.soundboard_db.verify_db()
 
 
 def setup(client):

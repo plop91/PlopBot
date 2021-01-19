@@ -16,6 +16,7 @@ class admin(commands.Cog):
     @commands.command(brief="Admin only command: Turn the bot off.")
     async def kill(self, ctx):
         # try to gracefully shutdown the bot
+        # noinspection PyBroadException
         try:
             if ctx.author in settings.json["admins"]:
                 settings.logger.info(f"kill from {ctx.author}!")

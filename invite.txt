@@ -1,5 +1,0 @@
-https://discordapp.com/oauth2/authorize?client_id=ID_HERE&scope=bot&permissions=0
-
-IanLive: https://discordapp.com/oauth2/authorize?client_id=680430856896118805&scope=bot&permissions=0
-
-Test: https://discordapp.com/oauth2/authorize?client_id=683350000742301754&scope=bot&permissions=0

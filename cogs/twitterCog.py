@@ -18,7 +18,8 @@ class twitter(commands.Cog):
 
     # gets the most recently tweeted image from the twitter account @factbot1
     @commands.command(brief="Retrieves the most recent post from factbot.")
-    async def factbot(self, ctx, filename="factbot.jpg"):
+    async def factbot(self, ctx):
+        filename = "factbot.jpg"
         settings.logger.info(f"factbot : {ctx.author}")
         await self.twitter.get_last_tweet_image("@factbot1", save_as=filename)
         channel = ctx.message.channel
