@@ -146,14 +146,14 @@ class audio(commands.Cog):
                                                        "before it can be played, thank jon for this feature.")
                         else:
                             try:
-                                settings.soundboard_db.add_db_entry(filename.lower(), filename.replace(".mp3", "").lower())
+                                settings.soundboard_db.add_db_entry(filename.lower(),
+                                                                    filename.replace(".mp3", "").lower())
                                 shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
                             except ValueError:
                                 await message.channel.send("A file with that name already existed in the database, "
                                                            "contact an admin!")
                                 settings.logger.warning("a file with the same name exists in the database but not on "
                                                         "the server")
-
 
         else:
             data = message.content.split(':')
@@ -173,8 +173,7 @@ class audio(commands.Cog):
                                     client.resume()
                             elif data[2] == "play":
                                 await play_clip(client, data[3])
-                            return
-                    await member.voice.chanel.connect()
+                await message.delete()
 
     # Plays an mp3 from the library of downloaded mp3's
     @commands.command(pass_context=True, aliases=['p', 'PLAY', 'P'],

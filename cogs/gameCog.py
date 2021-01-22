@@ -1,6 +1,6 @@
 import discord
 import settings
-from utility.tools import addToJson
+from settings import addToJson
 from discord.ext import commands
 
 
@@ -18,7 +18,7 @@ class game(commands.Cog):
                       description="")
     async def add_scribble(self, ctx, tag):
         tag = tag.strip().lower()
-        addToJson("info.json", settings.json, "scribble", tag)
+        addToJson("info.json", settings.info_json, "scribble", tag)
         await ctx.message.delete()
 
     @commands.command(pass_context=True, aliases=['list'],
@@ -27,8 +27,8 @@ class game(commands.Cog):
     async def list_scribble(self, ctx):
         embed_var = discord.Embed(title="Scribble words", description="description", color=0x00ff00)
         s = ""
-        if len(settings.json["scribble"]) > 0:
-            for scribble in settings.json["scribble"]:
+        if len(settings.info_json["scribble"]) > 0:
+            for scribble in settings.info_json["scribble"]:
                 if len(s) + len(scribble) >= 1024:
                     embed_var.add_field(name="scribbles:", value=s, inline=False)
                     s = ""

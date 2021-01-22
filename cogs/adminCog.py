@@ -18,9 +18,9 @@ class admin(commands.Cog):
         # try to gracefully shutdown the bot
         # noinspection PyBroadException
         try:
-            if ctx.author in settings.json["admins"]:
+            if ctx.author in settings.info_json["admins"]:
                 settings.logger.info(f"kill from {ctx.author}!")
-                if str(ctx.message.channel) in settings.json["command_channels"]:
+                if str(ctx.message.channel) in settings.info_json["command_channels"]:
                     await self.client.logout()
                     exit(0)
         # if the bot fails to logout kill it

@@ -1,5 +1,5 @@
 from discord.ext import commands, tasks
-from utility.tools import addToJson
+from settings import addToJson
 import settings
 import discord
 import random
@@ -36,8 +36,8 @@ class general(commands.Cog):
     async def on_member_join(self, member):
         settings.logger.info(f"member joined- {member}")
         for channel in member.guild.channels:
-            if str(channel) in settings.json["welcome_channels"]:
-                await channel.send(f"""{random.choice(settings.json["welcome_messages"])} {member.mention}?""")
+            if str(channel) in settings.info_json["welcome_channels"]:
+                await channel.send(f"""{random.choice(settings.info_json["welcome_messages"])} {member.mention}?""")
 
     # Changes the bot status in discord and adds the status to list of usable statuses
     @commands.command(brief="Change the bot presence to the argument string.")
@@ -45,7 +45,7 @@ class general(commands.Cog):
         settings.logger.info(f"echo from {ctx.author} : {tag}")
         if tag:
             await self.client.change_presence(status=discord.Status.online, activity=discord.Game(tag))
-            addToJson("info.json", settings.json, "status", tag)
+            addToJson("info.json", settings.info_json, "status", tag)
             await ctx.message.delete()
 
     # Lists statuses the bot will cycle through every hour and a half.
@@ -55,7 +55,7 @@ class general(commands.Cog):
 
         embed_var = discord.Embed(title="Status:", description="", color=0x00ff00)
         s = ""
-        for status in settings.json["status"]:
+        for status in settings.info_json["status"]:
             if len(s) + len(status) >= 1024:
                 embed_var.add_field(name="status:", value=s, inline=False)
                 s = ""
@@ -70,7 +70,7 @@ class general(commands.Cog):
     async def change_status(self):
         settings.logger.info(f"status changed automatically")
         await self.client.change_presence(status=discord.Status.online, activity=discord.Game(
-            settings.json["status"][random.randint(0, len(settings.json["status"]) - 1)]))
+            settings.info_json["status"][random.randint(0, len(settings.info_json["status"]) - 1)]))
 
 
 def setup(client):

@@ -12,9 +12,9 @@ client = commands.Bot(command_prefix='.')
 @client.command(brief="Admin only command: Load a Cog.")
 async def load(ctx, extension):
     settings.logger.info(f"load: {extension} :: from {ctx.author}")
-    if ctx.author not in settings.json["admins"]:
+    if ctx.author not in settings.info_json["admins"]:
         settings.logger.warning(f"User: {ctx.author} is not an admin but tried to load a cog!")
-    elif str(ctx.message.channel) not in settings.json["command_channels"]:
+    elif str(ctx.message.channel) not in settings.info_json["command_channels"]:
         settings.logger.info(f"User: {ctx.author} is an admin but tried to load in a non command channel!")
     else:
         client.load_extension(f'cogs.{extension}Cog')
@@ -26,9 +26,9 @@ async def load(ctx, extension):
 @client.command(brief="Admin only command: Unload a Cog.")
 async def unload(ctx, extension):
     settings.logger.info(f"unload: {extension} :: from {ctx.author}")
-    if ctx.author not in settings.json["admins"]:
+    if ctx.author not in settings.info_json["admins"]:
         settings.logger.warning(f"User: {ctx.author} is not an admin but tried to unload a cog!")
-    elif str(ctx.message.channel) not in settings.json["command_channels"]:
+    elif str(ctx.message.channel) not in settings.info_json["command_channels"]:
         settings.logger.info(f"User: {ctx.author} is an admin but tried to unload in a non command channel!")
     else:
         client.unload_extension(f'cogs.{extension}Cog')
@@ -40,9 +40,9 @@ async def unload(ctx, extension):
 @client.command(brief="Admin only command: Reload a Cog.")
 async def reload(ctx, extension):
     settings.logger.info(f"reload: {extension} :: from {ctx.author}")
-    if ctx.author not in settings.json["admins"]:
+    if ctx.author not in settings.info_json["admins"]:
         settings.logger.warning(f"User: {ctx.author} is not an admin but tried to reload a cog!")
-    elif str(ctx.message.channel) not in settings.json["command_channels"]:
+    elif str(ctx.message.channel) not in settings.info_json["command_channels"]:
         settings.logger.info(f"User: {ctx.author} is an admin but tried to reload in a non command channel!")
     else:
         client.unload_extension(f'cogs.{extension}Cog')

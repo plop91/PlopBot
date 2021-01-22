@@ -135,7 +135,7 @@ howto.txt
 Dockerfile-test
 concept.txt
 *.mp3
-*/twittertoken.json
+twittertoken.json
 *.docx
 *.json
 invite.txt
