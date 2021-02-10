@@ -183,7 +183,7 @@ class audio(commands.Cog):
                                     client.resume()
                             elif data[2] == "play":
                                 await play_clip(client, data[3])
-            await message.delete()
+                await message.delete()
 
     @commands.command(pass_context=True, aliases=['p', 'PLAY', 'P'],
                       brief="Plays a clip with the same name as the argument. alt command = 'p'",

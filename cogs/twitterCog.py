@@ -12,19 +12,23 @@ class twitter(commands.Cog):
 
     def __init__(self, client):
         self.client = client
-        self.twitter = twit()
 
-    # Logs that the cog was loaded properly
+        self.info = readJson("twittertoken.json")
+        self.auth = OAuthHandler(self.info["apikey"], self.info["apisecret"])
+        self.auth.set_access_token(self.info["accesstoken"], self.info["accesstokensecret"])
+        self.auth_api = API(self.auth)
+
     @commands.Cog.listener()
     async def on_ready(self):
+        """Logs that the cog was loaded properly"""
         settings.logger.info(f"twit cog ready!")
 
-    # gets the most recently tweeted image from the twitter account @factbot1
     @commands.command(brief="Retrieves the most recent post from factbot.")
     async def factbot(self, ctx):
+        """gets the most recently tweeted image from the twitter account @factbot1"""
         filename = "factbot.jpg"
         settings.logger.info(f"factbot : {ctx.author}")
-        await self.twitter.get_last_tweet_image("@factbot1", save_as=filename)
+        await self.get_last_tweet_image("@factbot1", save_as=filename)
         channel = ctx.message.channel
         if os.path.exists(filename):
             await channel.send(file=discord.File(filename))
@@ -36,16 +40,8 @@ class twitter(commands.Cog):
             await channel.send("Could not get new image.")
             await ctx.message.delete()
 
-
-class twit:
-    def __init__(self):
-        self.info = readJson("twittertoken.json")
-
-        self.auth = OAuthHandler(self.info["apikey"], self.info["apisecret"])
-        self.auth.set_access_token(self.info["accesstoken"], self.info["accesstokensecret"])
-        self.auth_api = API(self.auth)
-
     async def get_last_tweet_image(self, username, save_as="image.jpg"):
+        """get the most recently tweeted image from give username"""
         tweets = self.auth_api.user_timeline(screen_name=username, count=1, include_rts=False,
                                              exclude_replies=True)
         tmp = []

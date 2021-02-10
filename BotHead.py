@@ -1,3 +1,9 @@
+"""
+Driver file for Bot
+
+
+"""
+
 from discord.ext import commands
 import settings
 import discord
@@ -8,9 +14,9 @@ settings.init(db_host="192.168.1.250", db_username="discord", db_password="plop9
 client = commands.Bot(command_prefix='.')
 
 
-# Loads a new cog into the bot while running
 @client.command(brief="Admin only command: Load a Cog.")
 async def load(ctx, extension):
+    """Loads a new cog into the bot while running"""
     settings.logger.info(f"load: {extension} :: from {ctx.author}")
     if ctx.author not in settings.info_json["admins"]:
         settings.logger.warning(f"User: {ctx.author} is not an admin but tried to load a cog!")
@@ -22,9 +28,9 @@ async def load(ctx, extension):
         await ctx.message.delete()
 
 
-# Unloads an active cog from the bot
 @client.command(brief="Admin only command: Unload a Cog.")
 async def unload(ctx, extension):
+    """Unloads an active cog from the bot"""
     settings.logger.info(f"unload: {extension} :: from {ctx.author}")
     if ctx.author not in settings.info_json["admins"]:
         settings.logger.warning(f"User: {ctx.author} is not an admin but tried to unload a cog!")
@@ -36,9 +42,9 @@ async def unload(ctx, extension):
     await ctx.message.delete()
 
 
-# Unloads then reloads a cog
 @client.command(brief="Admin only command: Reload a Cog.")
 async def reload(ctx, extension):
+    """Unloads then reloads a cog"""
     settings.logger.info(f"reload: {extension} :: from {ctx.author}")
     if ctx.author not in settings.info_json["admins"]:
         settings.logger.warning(f"User: {ctx.author} is not an admin but tried to reload a cog!")
@@ -52,16 +58,16 @@ async def reload(ctx, extension):
     await ctx.message.delete()
 
 
-# Logs that the cog was loaded properly
 @client.event
 async def on_ready():
+    """Logs that the cog was loaded properly"""
     settings.logger.info(f"Logged on as {client.user}!")
     await client.change_presence(status=discord.Status.online, activity=discord.Game('listening'))
 
 
-# Logs the bot turning off
 @client.event
 async def on_disconnect():
+    """Logs the bot turning off"""
     settings.logger.info(f"Logged off!")
     await client.change_presence(status=discord.Status.offline, activity=discord.Game('sleeping'))
 

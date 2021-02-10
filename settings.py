@@ -1,3 +1,8 @@
+"""
+Settings file for the bot, contains json data, databases and logging.
+
+"""
+
 import mysql.connector
 import json
 import logging
@@ -16,7 +21,9 @@ def init(json_filename="info.json",
          db_username="admin",
          db_password="password",
          db_database_name="discord"):
-    # All testing portions of the bot should be removed before production
+    """Initializes all of the global variables"""
+
+    # NOTE: All testing portions of the bot should be removed before production
     # <testing--------------------------------------------------------------------------------------------------------->
     testing = True
 
@@ -76,7 +83,7 @@ def init(json_filename="info.json",
     global token
     token = None
 
-    # more testing
+    # more testing stuff to be removed
     if testing:
         sql = "SELECT * FROM tokens WHERE name ='Test'"
         my_cursor.execute(sql)
@@ -162,6 +169,7 @@ class SoundboardDBManager:
 
 
 def readToken(filename):
+    """reads a token from a file"""
     with open(filename, "r") as f:
         temp_token = f.readlines()
         f.close()
@@ -169,6 +177,7 @@ def readToken(filename):
 
 
 def readJson(filename):
+    """reads and returns json data"""
     with open(filename) as f:
         data = json.load(f)
         f.close()
@@ -176,6 +185,7 @@ def readJson(filename):
 
 
 def addToJson(filename, json_data, tag, data):
+    """adds given data to a json file"""
     with open(filename, "w") as file:
         json_data[tag].append(data)
         json.dump(json_data, file, indent=4)
