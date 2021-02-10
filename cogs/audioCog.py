@@ -103,34 +103,42 @@ class audio(commands.Cog):
         self.client = client
         self.maintenance.start()
 
-    # Logs that the cog was loaded properly and empties the youtube folder.
     @commands.Cog.listener()
     async def on_ready(self):
+        """Logs that the cog was loaded properly and empties the youtube folder."""
         settings.logger.info(f"audio cog ready!")
 
-    # Logs the bot turning off
     @commands.Cog.listener()
     async def on_disconnect(self):
+        """Logs the cog has turned off"""
         clean_youtube()
 
-    # This listener is to facilitate the ability to download an mp3 for use in the soundboard as well as interprets
-    # webhooks from my website.
     @commands.Cog.listener()
     async def on_message(self, message):
+        """This listener is to facilitate the ability to download an mp3 for use in the soundboard as well as
+        interprets webhook commands. """
+
+        # If there is a attachment
         if message.attachments:
+            # For each attachment
             for attachment in message.attachments:
+                # If the file is an mp3
                 if attachment.filename.endswith(".mp3"):
+                    # If a file with that name is already in the soundboard folder
                     if os.path.exists(f"./soundboard/{attachment.filename.lower().replace(' ', '')}"):
                         settings.logger.info(
                             f"{message.author} tried to add a mp3 file: {attachment} but a file with that name "
                             f"already exists.")
                         await message.channel.send("A clip with that name already exists please rename it to upload.")
+                    # If a file with that name exists in the soundboard/raw folder
                     elif os.path.exists(f"./soundboard/raw/{attachment.filename.lower().replace(' ', '')}"):
                         settings.logger.info(
                             f"{message.author} tried to add a mp3 file: {attachment} but a file with that name "
                             f"already exists in raw clips.")
                         await message.channel.send("A clip with that name has already been uploaded and is waiting "
                                                    "for admin approval. Notify an admin to resolve.")
+                    # If this is a new filename
+                    # BUG: does not seem to work on the live bot
                     else:
                         filename = attachment.filename.lower().replace(' ', '').replace('_', '')
                         settings.logger.info(f"{message.author} added a mp3 file: {attachment}")
@@ -146,8 +154,8 @@ class audio(commands.Cog):
                                                        "before it can be played, thank jon for this feature.")
                         else:
                             try:
-                                settings.soundboard_db.add_db_entry(filename.lower(),
-                                                                    filename.replace(".mp3", "").lower())
+                                settings.soundboard_db.add_db_entry(filename.lower(), filename.replace(".mp3",
+                                                                                                       "").lower())
                                 shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
                             except ValueError:
                                 await message.channel.send("A file with that name already existed in the database, "
@@ -156,7 +164,9 @@ class audio(commands.Cog):
                                                         "the server")
 
         else:
+            # divide message as though it was a webhook command
             data = message.content.split(':')
+            # check if it has a valid source
             if data[0] == "www.sodersjerna.com":
                 member = discord.utils.get(message.guild.members, name=data[1])
                 if member is not None and member.voice is not None:
@@ -173,15 +183,14 @@ class audio(commands.Cog):
                                     client.resume()
                             elif data[2] == "play":
                                 await play_clip(client, data[3])
-                await message.delete()
+            await message.delete()
 
-    # Plays an mp3 from the library of downloaded mp3's
     @commands.command(pass_context=True, aliases=['p', 'PLAY', 'P'],
                       brief="Plays a clip with the same name as the argument. alt command = 'p'",
                       description="Makes the bot play one of the soundboard files. For example if you wanted to play "
                                   "a file named hammer you would enter '.play hammer'/'.p hammer'")
     async def play(self, ctx, filename=None):
-
+        """Plays an mp3 from the library of downloaded mp3's"""
         settings.logger.info(f"play from {ctx.author} :{filename}")
 
         if filename is None:
@@ -208,33 +217,35 @@ class audio(commands.Cog):
         await play_clip(ctx.voice_client, filename)
         await ctx.message.delete()
 
-    # Downloads and plays the audio of the provided youtube link. Plays from a url (almost anything youtube_dl supports)
     @commands.command(pass_context=True, aliases=['yt', 'YOUTUBE', 'YT'],
                       brief="Plays the youtube clip at the url in the argument. alt command = 'yt'",
                       description="Makes the bot play a youtube videos audio. For example if you wanted to play the "
                                   "youtube video at 'https://www.youtube.com/watch?v=1234' you would enter '.youtube "
                                   "https://www.youtube.com/watch?v=1234'/'.yt https://www.youtube.com/watch?v=1234'")
     async def youtube(self, ctx, *, url):
+        """Downloads and plays the audio of the provided youtube link. Plays from a url (almost anything youtube_dl
+        supports) """
         settings.logger.info(f"youtube from {ctx.author} :{url}")
         async with ctx.typing():
             player = await YTDLSource.from_url(url, loop=self.client.loop)
             ctx.voice_client.play(player)
         await ctx.message.delete()
 
-    @commands.command(pass_context=True, aliases=[],
+    @commands.command(pass_context=True, aliases=['STREAM'],
                       brief="Streams from a url (same as yt, but doesn't pre-download)",
-                      description="")
+                      description="Streams from a url (same as yt, but doesn't pre-download)")
     async def stream(self, ctx, *, url):
+        """Streams from a url (same as yt, but doesn't pre-download)"""
         async with ctx.typing():
             player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True)
             ctx.voice_client.play(player)
         await ctx.message.delete()
 
-    # Forces the bot to leave whatever voice channel it is in.
     @commands.command(pass_context=True, aliases=['l', 'LEAVE', 'L'],
                       brief="Make the bot leave the voice server. alt command = 'l'",
                       description="Makes the bot leave the voice server.")
     async def leave(self, ctx):
+        """Forces the bot to leave any voice channel it is in."""
         settings.logger.info(f"leave from {ctx.author}")
 
         channel = ctx.message.author.voice.channel
@@ -249,10 +260,10 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
-    # Pauses whatever the bot is playing
     @commands.command(pass_context=True, aliases=['PAUSE'], brief="Pause everything the bot is playing",
                       description="Makes the bot pause anything that it is playing.")
     async def pause(self, ctx):
+        """Pauses whatever the bot is playing"""
         settings.logger.info(f"pause from {ctx.author}")
 
         voice = get(self.client.voice_clients, guild=ctx.guild)
@@ -264,11 +275,11 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
-    # Resumes playing if the bot is paused
     @commands.command(pass_context=True, aliases=['r', 'RESUME', 'R'],
                       brief="Resume playing paused Music. alt command = 'r'",
                       description="Makes the bot resume playing any paused audio.")
     async def resume(self, ctx):
+        """Resumes playing if the bot is paused"""
         settings.logger.info(f"resume from {ctx.author}")
 
         voice = get(self.client.voice_clients, guild=ctx.guild)
@@ -279,14 +290,12 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
-    # Stops playing whatever is playing
     @commands.command(pass_context=True, aliases=['s', 'STOP', 'S'],
                       brief="Stop any Music the bot is playing or has paused. alt "
-                            "command = 's'", description="Makes the bot stop playing "
-                                                         "any audio and forget what "
-                                                         "it was playing and when it "
-                                                         "stopped.")
+                            "command = 's'", description="Makes the bot stop playing any audio and forget what it was "
+                                                         "playing and when it stopped.")
     async def stop(self, ctx):
+        """Stops playing whatever is playing"""
         settings.logger.info(f"stop from {ctx.author}")
 
         voice = get(self.client.voice_clients, guild=ctx.guild)
@@ -298,11 +307,10 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
-    # Change the volume the bot plays back at
     @commands.command(pass_context=True, aliases=['v', 'VOLUME', 'V', 'vol'], brief="changes the volume of the bot",
                       description="Changes the volume of the bot.")
     async def volume(self, ctx, volume: int):
-        """Changes the player's volume"""
+        """Change the volume the bot plays back at"""
 
         if ctx.voice_client is None:
             return await ctx.send("Not connected to a voice channel.")
@@ -312,10 +320,10 @@ class audio(commands.Cog):
         await ctx.message.delete()
         await ctx.send(f"Changed volume to {volume}")
 
-    # Verifies the bot is in a voice channel before it tries to play something new.
     @play.before_invoke
     @youtube.before_invoke
     async def ensure_voice(self, ctx):
+        """Verifies the bot is in a voice channel before it tries to play something new."""
         if ctx.voice_client is None:
             if ctx.author.voice:
                 await ctx.author.voice.channel.connect()
@@ -325,9 +333,9 @@ class audio(commands.Cog):
         elif ctx.voice_client.is_playing():
             ctx.voice_client.stop()
 
-    # changes the bot to a randomly provided status.
     @tasks.loop(seconds=0, minutes=0, hours=24)
     async def maintenance(self):
+        """Changes the bot to a randomly provided status."""
         clean_youtube()
         settings.soundboard_db.verify_db()
 

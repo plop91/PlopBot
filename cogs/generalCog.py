@@ -23,7 +23,7 @@ class general(commands.Cog):
         message.content = message.content.strip().lower()
         settings.logger.info(f"Message from {message.author}: {message.content}")
         if message.author != self.client.user:
-            if message.content.lower() == "hey":
+            if message.content.strip().lower() == "hey":
                 await message.channel.send("Hi")
 
     # logs any deleted messages

@@ -1,9 +1,6 @@
-numpy
-beautifulsoup4
-scrapy
 tweepy
 wget
-pynacl
 mysql-connector-python
 ffmpeg-python
-spotdl
+discord.py
+youtube_dl

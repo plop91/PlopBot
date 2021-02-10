@@ -4,7 +4,6 @@ import logging
 import sys
 import os
 
-
 global info_json
 global db
 global token
@@ -109,6 +108,7 @@ class SoundboardDBManager:
         self.my_cursor = self.db.cursor()
 
     def add_db_entry(self, filename: str, name: str):
+        """Adds given filename to database with the given name"""
         try:
             sql = "INSERT INTO discord_soundboard (filename, name) VALUES (%s, %s)"
             val = (filename, name)
@@ -118,19 +118,22 @@ class SoundboardDBManager:
         except mysql.connector.errors.IntegrityError:
             raise ValueError
 
-    def remove_db_entry(self, soundclip_name: str):
+    def remove_db_entry(self, filename: str):
+        """Removes database entry for the given filename"""
         sql = "DELETE FROM discord_soundboard WHERE name = %s"
-        adr = (soundclip_name,)
+        adr = (filename,)
         self.my_cursor.execute(sql, adr)
         self.db.commit()
 
     def list_db_files(self):
+        """Returns a list of database entries"""
         sql = "SELECT * FROM discord_soundboard"
         self.my_cursor.execute(sql)
         my_result = self.my_cursor.fetchall()
         return my_result
 
     def verify_db(self):
+        """Checks database against files on server and manages database accordingly"""
         logger.info(f"verifying soundboard db!")
         try:
             db_files = self.list_db_files()
