@@ -124,20 +124,32 @@ class SoundboardDBManager:
             logger.info(f"adding sound to db filename:{filename}  name:{name}")
         except mysql.connector.errors.IntegrityError:
             raise ValueError
+        except Exception as e:
+            logger.warning(f"unknown exception while adding to db!")
+            logger.warning(e)
 
     def remove_db_entry(self, filename: str):
         """Removes database entry for the given filename"""
-        sql = "DELETE FROM discord_soundboard WHERE name = %s"
-        adr = (filename,)
-        self.my_cursor.execute(sql, adr)
-        self.db.commit()
+        try:
+            sql = "DELETE FROM discord_soundboard WHERE name = %s"
+            adr = (filename,)
+            self.my_cursor.execute(sql, adr)
+            self.db.commit()
+            logger.info(f"removed sound from db filename:{filename}")
+        except Exception as e:
+            logger.warning(f"unknown exception while removing from db!")
+            logger.warning(e)
 
     def list_db_files(self):
         """Returns a list of database entries"""
-        sql = "SELECT * FROM discord_soundboard"
-        self.my_cursor.execute(sql)
-        my_result = self.my_cursor.fetchall()
-        return my_result
+        try:
+            sql = "SELECT * FROM discord_soundboard"
+            self.my_cursor.execute(sql)
+            my_result = self.my_cursor.fetchall()
+            return my_result
+        except Exception as e:
+            logger.warning(f"unknown exception while listing db!")
+            logger.warning(e)
 
     def verify_db(self):
         """Checks database against files on server and manages database accordingly"""

@@ -102,6 +102,7 @@ class audio(commands.Cog):
     def __init__(self, client):
         self.client = client
         self.maintenance.start()
+        self.dbmaint.start()
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -117,73 +118,78 @@ class audio(commands.Cog):
     async def on_message(self, message):
         """This listener is to facilitate the ability to download an mp3 for use in the soundboard as well as
         interprets webhook commands. """
-
-        # If there is a attachment
-        if message.attachments:
-            # For each attachment
-            for attachment in message.attachments:
-                # If the file is an mp3
-                if attachment.filename.endswith(".mp3"):
-                    # If a file with that name is already in the soundboard folder
-                    if os.path.exists(f"./soundboard/{attachment.filename.lower().replace(' ', '')}"):
-                        settings.logger.info(
-                            f"{message.author} tried to add a mp3 file: {attachment} but a file with that name "
-                            f"already exists.")
-                        await message.channel.send("A clip with that name already exists please rename it to upload.")
-                    # If a file with that name exists in the soundboard/raw folder
-                    elif os.path.exists(f"./soundboard/raw/{attachment.filename.lower().replace(' ', '')}"):
-                        settings.logger.info(
-                            f"{message.author} tried to add a mp3 file: {attachment} but a file with that name "
-                            f"already exists in raw clips.")
-                        await message.channel.send("A clip with that name has already been uploaded and is waiting "
-                                                   "for admin approval. Notify an admin to resolve.")
-                    # If this is a new filename
-                    # BUG: does not seem to work on the live bot
-                    else:
-                        filename = attachment.filename.lower().replace(' ', '').replace('_', '')
-                        settings.logger.info(f"{message.author} added a mp3 file: {attachment}")
-                        await message.channel.send(
-                            f"The audio is being downloaded and should be ready shortly the name of the clip will be: "
-                            f"{filename.replace('.mp3', '')}")
-                        await attachment.save(f"./soundboard/raw/{filename}")
-                        audio_json = ffmpeg.probe(f"./soundboard/raw/{filename}")
-
-                        # the jon rule - if the clip is too long i have to review it
-                        if float(audio_json['streams'][0]['duration']) >= 60:
-                            await message.channel.send("The clip is longer than a minute and will need to be reviewed "
-                                                       "before it can be played, thank jon for this feature.")
+        # If the message is not from the bot itself.
+        if message.author != self.client.user:
+            # If there is a attachment
+            if message.attachments:
+                # For each attachment
+                for attachment in message.attachments:
+                    # If the file is an mp3
+                    if attachment.filename.endswith(".mp3"):
+                        # If a file with that name is already in the soundboard folder
+                        if os.path.exists(f"./soundboard/{attachment.filename.lower().replace(' ', '')}"):
+                            settings.logger.info(
+                                f"{message.author} tried to add a mp3 file: {attachment} but a file with that name "
+                                f"already exists.")
+                            await message.channel.send("A clip with that name already exists please rename it to "
+                                                       "upload.")
+                            # If a file with that name exists in the soundboard/raw folder
+                        elif os.path.exists(f"./soundboard/raw/{attachment.filename.lower().replace(' ', '')}"):
+                            settings.logger.info(
+                                f"{message.author} tried to add a mp3 file: {attachment} but a file with that name "
+                                f"already exists in raw clips.")
+                            await message.channel.send("A clip with that name has already been uploaded and is waiting "
+                                                       "for admin approval. Notify an admin to resolve.")
+                        # If this is a new filename
+                        # Note: change to "on_socket_raw_receive" listener
+                        # BUG: does not seem to work on the live bot
                         else:
-                            try:
-                                settings.soundboard_db.add_db_entry(filename.lower(), filename.replace(".mp3",
-                                                                                                       "").lower())
-                                shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
-                            except ValueError:
-                                await message.channel.send("A file with that name already existed in the database, "
-                                                           "contact an admin!")
-                                settings.logger.warning("a file with the same name exists in the database but not on "
-                                                        "the server")
+                            filename = attachment.filename.lower().replace(' ', '').replace('_', '')
+                            settings.logger.info(f"{message.author} added a mp3 file: {attachment}")
+                            await message.channel.send(
+                                f"The audio is being downloaded and should be ready shortly the name of the clip will "
+                                f"be: {filename.replace('.mp3', '')}")
+                            await attachment.save(f"./soundboard/raw/{filename}")
+                            audio_json = ffmpeg.probe(f"./soundboard/raw/{filename}")
 
-        else:
-            # divide message as though it was a webhook command
-            data = message.content.split(':')
-            # check if it has a valid source
-            if data[0] == "www.sodersjerna.com":
-                member = discord.utils.get(message.guild.members, name=data[1])
-                if member is not None and member.voice is not None:
-                    for client in self.client.voice_clients:
-                        if client.channel.id == member.voice.channel.id:
-                            if data[2] == "stop":
-                                if client.is_playing():
-                                    client.stop()
-                            elif data[2] == "pause":
-                                if client.is_playing():
-                                    client.pause()
-                            elif data[2] == "resume":
-                                if client.is_paused():
-                                    client.resume()
-                            elif data[2] == "play":
-                                await play_clip(client, data[3])
-                await message.delete()
+                            # the jon rule - if the clip is too long i have to review it
+                            if float(audio_json['streams'][0]['duration']) >= 60:
+                                await message.channel.send("The clip is longer than a minute and will need to be "
+                                                           "reviewed before it can be played, thank jon for this "
+                                                           "feature.")
+                            else:
+                                try:
+                                    shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
+                                    # BUG: adding to db broken disabled until fixed, covered by daily update.
+                                    settings.soundboard_db.add_db_entry(filename.lower(),
+                                                                        filename.replace(".mp3", "").lower())
+                                except ValueError:
+                                    await message.channel.send("A file with that name already existed in the database, "
+                                                               "contact an admin!")
+                                    settings.logger.warning("a file with the same name exists in the database but not "
+                                                            "on the server")
+
+            else:
+                # divide message as though it was a webhook command
+                data = message.content.split(':')
+                # check if it has a valid source
+                if data[0] == "www.sodersjerna.com":
+                    member = discord.utils.get(message.guild.members, name=data[1])
+                    if member is not None and member.voice is not None:
+                        for client in self.client.voice_clients:
+                            if client.channel.id == member.voice.channel.id:
+                                if data[2] == "stop":
+                                    if client.is_playing():
+                                        client.stop()
+                                elif data[2] == "pause":
+                                    if client.is_playing():
+                                        client.pause()
+                                elif data[2] == "resume":
+                                    if client.is_paused():
+                                        client.resume()
+                                elif data[2] == "play":
+                                    await play_clip(client, data[3])
+                    await message.delete()
 
     @commands.command(pass_context=True, aliases=['p', 'PLAY', 'P'],
                       brief="Plays a clip with the same name as the argument. alt command = 'p'",
@@ -338,6 +344,12 @@ class audio(commands.Cog):
         """Changes the bot to a randomly provided status."""
         clean_youtube()
         settings.soundboard_db.verify_db()
+
+    @tasks.loop(seconds=0, minutes=5, hours=0)
+    async def dbmaint(self):
+        """TEMP: added to fix bug"""
+        settings.logger.info("ran dbmaint")
+        settings.soundboard_db.list_db_files()
 
 
 def setup(client):
