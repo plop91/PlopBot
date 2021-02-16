@@ -9,8 +9,11 @@ import settings
 import discord
 import os
 
+jsn = settings.readJson("info.json")
+
 # Initialize settings to connect to database, open json and setup logging
-settings.init(db_host="192.168.1.250", db_username="discord", db_password="plop9100")
+settings.init(db_host=jsn['database']['server_address'], db_username=jsn['database']['username'],
+              db_password=jsn['database']['password'])
 client = commands.Bot(command_prefix='.')
 
 

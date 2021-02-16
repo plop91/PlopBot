@@ -4,6 +4,7 @@ Settings file for the bot, contains json data, databases and logging.
 """
 
 import mysql.connector
+from mysql.connector import errorcode
 import json
 import logging
 import sys
@@ -99,20 +100,27 @@ def init(json_filename="info.json",
     # <db-------------------------------------------------------------------------------------------------------------->
     # <soundboard_db--------------------------------------------------------------------------------------------------->
     global soundboard_db
-    soundboard_db = SoundboardDBManager()
+    soundboard_db = SoundboardDBManager(db_host=info_json['soundboard_database']['server_address'],
+                                        db_username=info_json['soundboard_database']['username'],
+                                        db_password=info_json['soundboard_database']['password'],
+                                        database_name=info_json['soundboard_database']['database'])
     # <soundboard_db--------------------------------------------------------------------------------------------------->
 
 
 class SoundboardDBManager:
-    def __init__(self):
-        self.db = mysql.connector.connect(
-            host="database.sodersjerna.com",
-            user="Pycharm",
-            password="plop9100",
-            database="Pycharm"
-        )
+    def __init__(self, db_host="127.0.0.1", db_username="admin", db_password="password", database_name="discord"):
+        try:
+            self.db = mysql.connector.connect(
+                host=db_host,
+                user=db_username,
+                password=db_password,
+                database=database_name
+            )
 
-        self.my_cursor = self.db.cursor()
+            self.my_cursor = self.db.cursor()
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+                logger.warning("Soundboard user name or password")
 
     def add_db_entry(self, filename: str, name: str):
         """Adds given filename to database with the given name"""
