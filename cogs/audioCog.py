@@ -15,7 +15,7 @@ youtube_dl.utils.bug_reports_message = lambda: ''
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
-    'outtmpl': 'youtube/%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'outtmpl': 'youtube/%(title)s.%(ext)s',
     'restrictfilenames': True,
     'noplaylist': True,
     'nocheckcertificate': True,
@@ -24,7 +24,7 @@ ytdl_format_options = {
     'quiet': True,
     'no_warnings': True,
     'default_search': 'auto',
-    'source_address': '0.0.0.0'  # bind to ipv4 since ipv6 addresses cause issues sometimes
+    'source_address': '0.0.0.0'  # bind to ipv4
 }
 
 ffmpeg_options = {
@@ -102,7 +102,6 @@ class audio(commands.Cog):
     def __init__(self, client):
         self.client = client
         self.maintenance.start()
-        self.dbmaint.start()
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -141,8 +140,6 @@ class audio(commands.Cog):
                             await message.channel.send("A clip with that name has already been uploaded and is waiting "
                                                        "for admin approval. Notify an admin to resolve.")
                         # If this is a new filename
-                        # Note: change to "on_socket_raw_receive" listener
-                        # BUG: does not seem to work on the live bot
                         else:
                             filename = attachment.filename.lower().replace(' ', '').replace('_', '')
                             settings.logger.info(f"{message.author} added a mp3 file: {attachment}")
@@ -152,7 +149,7 @@ class audio(commands.Cog):
                             await attachment.save(f"./soundboard/raw/{filename}")
                             audio_json = ffmpeg.probe(f"./soundboard/raw/{filename}")
 
-                            # the jon rule - if the clip is too long i have to review it
+                            # If the clip is too long it needs to be reviewed
                             if float(audio_json['streams'][0]['duration']) >= 60:
                                 await message.channel.send("The clip is longer than a minute and will need to be "
                                                            "reviewed before it can be played, thank jon for this "
@@ -160,7 +157,6 @@ class audio(commands.Cog):
                             else:
                                 try:
                                     shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
-                                    # BUG: adding to db broken disabled until fixed, covered by daily update.
                                     settings.soundboard_db.add_db_entry(filename.lower(),
                                                                         filename.replace(".mp3", "").lower())
                                 except ValueError:
@@ -344,12 +340,7 @@ class audio(commands.Cog):
         """Changes the bot to a randomly provided status."""
         clean_youtube()
         settings.soundboard_db.verify_db()
-
-    @tasks.loop(seconds=0, minutes=5, hours=0)
-    async def dbmaint(self):
-        """TEMP: added to fix bug"""
-        settings.logger.info("ran dbmaint")
-        settings.soundboard_db.list_db_files()
+        settings.logger.info(f"Maintenance completed")
 
 
 def setup(client):

@@ -3,7 +3,6 @@ from tweepy import OAuthHandler
 from tweepy import API
 import wget
 import settings
-from settings import readJson
 import discord
 import os
 
@@ -13,9 +12,9 @@ class twitter(commands.Cog):
     def __init__(self, client):
         self.client = client
 
-        self.info = readJson("twittertoken.json")
-        self.auth = OAuthHandler(self.info["apikey"], self.info["apisecret"])
-        self.auth.set_access_token(self.info["accesstoken"], self.info["accesstokensecret"])
+        self.auth = OAuthHandler(settings.info_json["twitter"]["apikey"], settings.info_json["twitter"]["apisecret"])
+        self.auth.set_access_token(settings.info_json["twitter"]["accesstoken"],
+                                   settings.info_json["twitter"]["accesstokensecret"])
         self.auth_api = API(self.auth)
 
     @commands.Cog.listener()

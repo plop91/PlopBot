@@ -4,3 +4,4 @@ mysql-connector-python
 ffmpeg-python
 discord.py
 youtube_dl
+pynacl

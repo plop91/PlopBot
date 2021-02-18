@@ -1,9 +1,13 @@
+# Build from basic python image
 FROM python:3.7
+# Set working dir to the app folder.
 WORKDIR /usr/src/app
-COPY requirements.txt requirements.txt
-
+# Copy all source code into the container
+COPY . /usr/src/app/
+# Create a volume so soundboard files are saved on server
 VOLUME ["/usr/src/app/"]
+# Install dependencies.
 RUN apt-get update && apt-get install -y ffmpeg
-RUN python3 -m pip install \
-        -r requirements.txt\
-CMD ["python3", "BotHead.py", "false"]
+RUN python3 -m pip install -r requirements.txt
+# Run Bot
+CMD ["python3", "BotHead.py", "true"]
