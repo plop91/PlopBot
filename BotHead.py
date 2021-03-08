@@ -10,9 +10,10 @@ import discord
 import argparse
 import os
 
-parser = argparse.ArgumentParser(description='')
+parser = argparse.ArgumentParser(prog='Discord Bot',
+                                 description='a discord bot with a soundboard and some additional features.')
 
-parser.add_argument('testing', metavar='testing', type=bool, help='if the bot is in testing mode', default=False)
+parser.add_argument('testing', metavar='testing', help='if the bot is in testing mode')
 parser.add_argument('--json', help='Path to json file', default='info.json')
 parser.add_argument('--db_host', help='Path to json file', default=None)
 parser.add_argument('--db_username', help='Path to json file', default=None)

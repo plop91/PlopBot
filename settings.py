@@ -21,7 +21,10 @@ def init(args):
 
     # NOTE: All testing portions of the bot should be removed before production
     # <testing--------------------------------------------------------------------------------------------------------->
-    testing = args.testing
+    if args.testing.lower() == "false":
+        testing = False
+    else:
+        testing = True
     # <testing--------------------------------------------------------------------------------------------------------->
 
     # <logger---------------------------------------------------------------------------------------------------------->
