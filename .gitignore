@@ -137,5 +137,6 @@ concept.txt
 *.mp3
 twittertoken.json
 *.docx
-*.json
+info.json
 invite.txt
+/texts/

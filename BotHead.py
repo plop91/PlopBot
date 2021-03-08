@@ -7,13 +7,23 @@ Driver file for Bot
 from discord.ext import commands
 import settings
 import discord
+import argparse
 import os
 
-jsn = settings.readJson("info.json")
+parser = argparse.ArgumentParser(description='')
+
+parser.add_argument('testing', metavar='testing', type=bool, help='if the bot is in testing mode', default=False)
+parser.add_argument('--json', help='Path to json file', default='info.json')
+parser.add_argument('--db_host', help='Path to json file', default=None)
+parser.add_argument('--db_username', help='Path to json file', default=None)
+parser.add_argument('--db_password', help='Path to json file', default=None)
+parser.add_argument('--db_name', help='Path to json file', default=None)
+
+args = parser.parse_args()
 
 # Initialize settings to connect to database, open json and setup logging
-settings.init(db_host=jsn['database']['server_address'], db_username=jsn['database']['username'],
-              db_password=jsn['database']['password'])
+settings.init(args)
+
 client = commands.Bot(command_prefix='.')
 
 

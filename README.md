@@ -43,7 +43,7 @@ Clone the repository and make a file named "info.json" containing the following 
 
 ## Run:
 
-###Docker:
+### Docker:
 Build and run the bot making sure you mount the correct location for your source.
     
     docker build -t "discord" . && docker run -v PATH_TO_SOURCE_DIR:/usr/src/app/ --detach --name DiscordBot "discord"

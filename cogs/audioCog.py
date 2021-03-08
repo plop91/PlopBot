@@ -1,8 +1,11 @@
 from discord.ext import commands, tasks
 from discord.errors import ClientException
 from discord.utils import get
+import markovify
+from gtts import gTTS
 import asyncio
 import os
+import json
 import random
 import youtube_dl
 import discord
@@ -102,6 +105,9 @@ class audio(commands.Cog):
     def __init__(self, client):
         self.client = client
         self.maintenance.start()
+        with open("reddit.json") as f:
+            model_json = json.load(f)
+        self.reddit_text_model = markovify.Text.from_json(model_json)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -322,8 +328,21 @@ class audio(commands.Cog):
         await ctx.message.delete()
         await ctx.send(f"Changed volume to {volume}")
 
+    @commands.command(pass_context=True, aliases=[], brief="",
+                      description="")
+    async def reddit(self, ctx):
+        settings.logger.info(f"reddit from {ctx.author}")
+        sent = None
+        while sent is None:
+            sent = self.reddit_text_model.make_sentence(tries=1000)
+        tts = gTTS(sent)
+        tts.save('soundboard/reddit.mp3')
+        await play_clip(ctx.voice_client, "reddit")
+        await ctx.message.delete()
+
     @play.before_invoke
     @youtube.before_invoke
+    @reddit.before_invoke
     async def ensure_voice(self, ctx):
         """Verifies the bot is in a voice channel before it tries to play something new."""
         if ctx.voice_client is None:

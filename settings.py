@@ -7,7 +7,6 @@ import mysql.connector
 from mysql.connector import errorcode
 import json
 import logging
-import sys
 import os
 
 global info_json
@@ -17,20 +16,12 @@ global logger
 global soundboard_db
 
 
-def init(json_filename="info.json",
-         db_host="127.0.0.1",
-         db_username="admin",
-         db_password="password",
-         db_database_name="discord"):
+def init(args):
     """Initializes all of the global variables"""
 
     # NOTE: All testing portions of the bot should be removed before production
     # <testing--------------------------------------------------------------------------------------------------------->
-    testing = True
-
-    if len(sys.argv) == 2:
-        if "false" in sys.argv[1] or "False" in sys.argv[1]:
-            testing = False
+    testing = args.testing
     # <testing--------------------------------------------------------------------------------------------------------->
 
     # <logger---------------------------------------------------------------------------------------------------------->
@@ -67,54 +58,44 @@ def init(json_filename="info.json",
 
     # <json------------------------------------------------------------------------------------------------------------>
     global info_json
-    info_json = readJson(json_filename)
-    # global token
-    # if testing:
-    #     token = info_json["test_token"]
-    # else:
-    #     token = info_json["live_token"]
-    # <json------------------------------------------------------------------------------------------------------------>
-
-    # <db-------------------------------------------------------------------------------------------------------------->
-    global db
-    db = mysql.connector.connect(
-        host=db_host,
-        user=db_username,
-        password=db_password,
-        database=db_database_name
-    )
-
-    my_cursor = db.cursor()
-
+    info_json = readJson(args.json)
     global token
-    token = None
-
-    # more testing stuff to be removed
     if testing:
-        sql = "SELECT * FROM tokens WHERE name ='Test'"
-        my_cursor.execute(sql)
-        my_result = my_cursor.fetchall()
-        for x in my_result:
-            token = x[1]
+        token = info_json["test_token"]
     else:
-        sql = "SELECT * FROM tokens WHERE name ='Live'"
-        my_cursor.execute(sql)
-        my_result = my_cursor.fetchall()
-        for x in my_result:
-            token = x[1]
-    # <db-------------------------------------------------------------------------------------------------------------->
+        token = info_json["live_token"]
+    # <json------------------------------------------------------------------------------------------------------------>
 
     # <soundboard_db--------------------------------------------------------------------------------------------------->
     global soundboard_db
-    soundboard_db = SoundboardDBManager(db_host=info_json['soundboard_database']['server_address'],
-                                        db_username=info_json['soundboard_database']['username'],
-                                        db_password=info_json['soundboard_database']['password'],
-                                        database_name=info_json['soundboard_database']['database'])
+
+    if args.db_host is not None:
+        host = args.db_host
+    else:
+        host = info_json['soundboard_database']['server_address']
+
+    if args.db_username is not None:
+        db_username = args.db_host
+    else:
+        db_username = info_json['soundboard_database']['username']
+
+    if args.db_password is not None:
+        db_password = args.db_host
+    else:
+        db_password = info_json['soundboard_database']['password']
+
+    if args.db_name is not None:
+        db_name = args.db_host
+    else:
+        db_name = info_json['soundboard_database']['database']
+
+    soundboard_db = SoundboardDBManager(db_host=host, db_username=db_username, db_password=db_password,
+                                        database_name=db_name)
     # <soundboard_db--------------------------------------------------------------------------------------------------->
 
 
 class SoundboardDBManager:
-    def __init__(self, db_host="127.0.0.1", db_username="admin", db_password="password", database_name="discord"):
+    def __init__(self, db_host, db_username, db_password, database_name):
         try:
             self.db_host = db_host
             self.db_username = db_username

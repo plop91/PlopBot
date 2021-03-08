@@ -1,7 +1,10 @@
-tweepy
-wget
-mysql-connector-python
-ffmpeg-python
-discord.py
-youtube_dl
-pynacl
+discord.py # Discord interface
+argparse # Command line argument parcer
+tweepy # Twitter interface, required by twitterCog.py
+wget # Web interface, required by twitterCog.py
+mysql-connector-python # Databse interface, required by settings.py
+ffmpeg-python # Video and audio processing, required by audioCog.py
+youtube_dl # video downloader, required by audioCog.py
+pynacl # additional networking, required by audioCog.py
+markovify # markov chain library, required by audioCog.py
+gtts # google text to speech, required by audioCog.py
