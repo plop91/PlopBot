@@ -21,6 +21,7 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.7
+    # NOTE: not able to test ffmpeg install
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -34,13 +35,16 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      # NOTE: add pytest to enable better testing
 #     - name: Test with pytest
 #       run: |
 #         pytest
-    - name: Build and Push Docker Image
-      uses: mr-smithers-excellent/docker-build-push@v5
-      with:
-        image: plop91/plop_discord
-        registry: docker.io
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # NOTE: check that docker image builds and will push
+#    - name: Build and Push Docker Image
+#      uses: mr-smithers-excellent/docker-build-push@v5
+#      with:
+#        image: plop91/plop_discord
+#        registry: docker.io
+#        username: ${{ secrets.DOCKER_USERNAME }}
+#        password: ${{ secrets.DOCKER_PASSWORD }}
