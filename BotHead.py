@@ -13,12 +13,11 @@ import os
 parser = argparse.ArgumentParser(prog='Discord Bot',
                                  description='a discord bot with a soundboard and some additional features.')
 
-parser.add_argument('testing', metavar='testing', help='if the bot is in testing mode')
 parser.add_argument('--json', help='Path to json file', default='info.json')
-parser.add_argument('--db_host', help='Path to json file', default=None)
-parser.add_argument('--db_username', help='Path to json file', default=None)
-parser.add_argument('--db_password', help='Path to json file', default=None)
-parser.add_argument('--db_name', help='Path to json file', default=None)
+parser.add_argument('--db_host', help='Database hostname or ip by default taken from json file', default=None)
+parser.add_argument('--db_username', help='Database username by default taken from json file', default=None)
+parser.add_argument('--db_password', help='Database password by default taken from json file', default=None)
+parser.add_argument('--db_name', help='Database name by default taken from json file', default=None)
 
 args = parser.parse_args()
 

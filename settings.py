@@ -19,14 +19,6 @@ global soundboard_db
 def init(args):
     """Initializes all of the global variables"""
 
-    # NOTE: All testing portions of the bot should be removed before production
-    # <testing--------------------------------------------------------------------------------------------------------->
-    if args.testing.lower() == "false":
-        testing = False
-    else:
-        testing = True
-    # <testing--------------------------------------------------------------------------------------------------------->
-
     # <logger---------------------------------------------------------------------------------------------------------->
     global logger
     discord_logger = logging.getLogger("discord")
@@ -36,16 +28,10 @@ def init(args):
     discord_file_handler = logging.FileHandler("discord.log")
     console_handler = logging.StreamHandler()
 
-    if testing:
-        logger = logging.getLogger("Testing-Logger")
-        logger.setLevel(logging.DEBUG)
-        file_handler.setLevel(logging.DEBUG)
-        console_handler.setLevel(logging.DEBUG)
-    else:
-        logger = logging.getLogger("Live-Logger")
-        logger.setLevel(logging.INFO)
-        file_handler.setLevel(logging.INFO)
-        console_handler.setLevel(logging.INFO)
+    logger = logging.getLogger("Logger")
+    logger.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.DEBUG)
+    console_handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -63,34 +49,31 @@ def init(args):
     global info_json
     info_json = readJson(args.json)
     global token
-    if testing:
-        token = info_json["test_token"]
-    else:
-        token = info_json["live_token"]
+    token = info_json["token"]
     # <json------------------------------------------------------------------------------------------------------------>
 
     # <soundboard_db--------------------------------------------------------------------------------------------------->
     global soundboard_db
 
-    if args.db_host is not None:
-        host = args.db_host
-    else:
+    if args.db_host is None:
         host = info_json['soundboard_database']['server_address']
-
-    if args.db_username is not None:
-        db_username = args.db_host
     else:
+        host = args.db_host
+
+    if args.db_username is None:
         db_username = info_json['soundboard_database']['username']
-
-    if args.db_password is not None:
-        db_password = args.db_host
     else:
+        db_username = args.db_host
+
+    if args.db_password is None:
         db_password = info_json['soundboard_database']['password']
-
-    if args.db_name is not None:
-        db_name = args.db_host
     else:
+        db_password = args.db_host
+
+    if args.db_name is None:
         db_name = info_json['soundboard_database']['database']
+    else:
+        db_name = args.db_host
 
     soundboard_db = SoundboardDBManager(db_host=host, db_username=db_username, db_password=db_password,
                                         database_name=db_name)
@@ -222,15 +205,15 @@ class SoundboardDBManager:
                     return my_result
 
                 except Exception as e:
-                    logger.warning(f"unknown exception while adding to db!")
+                    logger.warning(f"List_db_file inner unknown exception while listing db!")
                     logger.warning(e)
 
             else:
-                logger.warning(f"unknown exception while adding to db!")
+                logger.warning(f"List_db_file unknown my sql exception while listing db!")
                 logger.warning(e)
 
         except Exception as e:
-            logger.warning("unknown exception while listing db!")
+            logger.warning("List_db_file unknown exception while listing db!")
             logger.warning(e)
 
     def verify_db(self):

@@ -10,4 +10,4 @@ VOLUME ["/usr/src/app/"]
 RUN apt-get update && apt-get install -y ffmpeg
 RUN python3 -m pip install -r requirements.txt
 # Run Bot
-CMD ["python3", "BotHead.py", "false"]
+CMD ["python3", "BotHead.py"]
