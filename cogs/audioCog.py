@@ -340,9 +340,21 @@ class audio(commands.Cog):
         await play_clip(ctx.voice_client, "reddit")
         await ctx.message.delete()
 
+    @commands.command(aliases=['SAY'],
+                      brief="",
+                      description="")
+    async def say(self, ctx, text):
+        """  """
+        settings.logger.info(f"say from {ctx.author} text:{text}")
+        text = text.strip().lower()
+        gTTS(text).save('soundboard/say.mp3')
+        await play_clip(ctx.voice_client, "say")
+        await ctx.message.delete()
+
     @play.before_invoke
     @youtube.before_invoke
     @reddit.before_invoke
+    @say.before_invoke
     async def ensure_voice(self, ctx):
         """Verifies the bot is in a voice channel before it tries to play something new."""
         if ctx.voice_client is None:

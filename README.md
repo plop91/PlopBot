@@ -1,15 +1,14 @@
-# DiscordBot (PlopBot)
+# PlopBot
 
-A general purpose discord bot written in Python using the discord.py library.
+A Discord bot with an integrated soundboard and text to speech capabilities written in Python using discord.py.
 
-The bot is intended to be deployed in a docker container but can be run using a python3 interpreter.
 
 ## Setup
 
 Clone the repository and make a file named "info.json" containing the following with bold typed words replaced with relevant information.
 
     {
-      "live_token": "DISCORD_BOT_TOKEN",
+      "token": "DISCORD_BOT_TOKEN",
       "soundboard_database": {
         "server_address": "DATABASE_ADDRESS",
         "username": "DATABASE_USERNAME",

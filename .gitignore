@@ -132,14 +132,8 @@ dmypy.json
 .vscode/*
 
 .idea
-Livetoken.txt
-Testtoken.txt
 howto.txt
-Dockerfile-test
-concept.txt
-*.mp3
-twittertoken.json
 *.docx
-info.json
-invite.txt
+*.json
+*.mp3
 /texts/
