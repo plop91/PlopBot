@@ -2,6 +2,7 @@ import discord
 import settings
 from settings import addToJson
 from discord.ext import commands
+import random
 
 
 class game(commands.Cog):
@@ -35,6 +36,31 @@ class game(commands.Cog):
                 s += scribble + ", "
             embed_var.add_field(name="scribbles:", value=s, inline=False)
             await ctx.channel.send(embed=embed_var)
+        await ctx.message.delete()
+
+    @commands.command(pass_context=True, aliases=['TEAMS'],
+                      brief="Divides the current channel into two random teams.",
+                      description="Divides the current channel into two random teams.")
+    async def teams(self, ctx):
+        """Divides the current channel into two random teams."""
+
+        # get current voice channel of author
+        voice = ctx.author.voice.channel
+        
+        if voice is not None:
+            people = voice.members
+            
+            team1 = random.sample(people, int(len(people)/2))
+            for x in team1:
+                people.remove(x)
+            team2 = people
+            
+            await ctx.send("Team 1:"+" ,".join(str(i) for i in team1))
+            await ctx.send("Team 2:"+" ,".join(str(i) for i in team2))
+        else:
+            settings.logger.info(f"Could not find voice channel of member.")
+            await ctx.send("Don't think you're in a voice channel")
+
         await ctx.message.delete()
 
 
