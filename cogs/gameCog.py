@@ -48,15 +48,18 @@ class game(commands.Cog):
         voice = ctx.author.voice.channel
         
         if voice is not None:
-            people = voice.members
+            members = voice.members
+            # filter bots from list
+            people = list(filter(lambda x: (not x.bot), members))
+            settings.logger.info(f"Teams with members: ".join(m.name for m in people))
             
             team1 = random.sample(people, int(len(people)/2))
             for x in team1:
                 people.remove(x)
             team2 = people
             
-            await ctx.send("Team 1:"+" ,".join(str(i) for i in team1))
-            await ctx.send("Team 2:"+" ,".join(str(i) for i in team2))
+            await ctx.send("Team 1:"+" ,".join(m.name for m in team1))
+            await ctx.send("Team 2:"+" ,".join(m.name for m in team2))
         else:
             settings.logger.info(f"Could not find voice channel of member.")
             await ctx.send("Don't think you're in a voice channel")
