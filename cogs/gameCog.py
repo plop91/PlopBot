@@ -52,10 +52,10 @@ class game(commands.Cog):
             people = list(filter(lambda x: (not x.bot), voice.members))
             settings.logger.info(f"Teams with members: ".join(m.name for m in people))
             
-            team1 = random.sample(people, int(len(people)/2))
+            team2 = random.sample(people, int(len(people)/2))
             for x in team1:
                 people.remove(x)
-            team2 = people
+            team1 = people
             
             await ctx.send("Team 1: "+", ".join(m.name for m in team1))
             await ctx.send("Team 2: "+", ".join(m.name for m in team2))
