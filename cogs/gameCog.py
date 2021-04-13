@@ -53,7 +53,7 @@ class game(commands.Cog):
             settings.logger.info(f"Teams with members: ".join(m.name for m in people))
             
             team2 = random.sample(people, int(len(people)/2))
-            for x in team1:
+            for x in team2:
                 people.remove(x)
             team1 = people
             
