@@ -5,7 +5,7 @@ name: DiscordBot
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master docker-repo-test ]
   pull_request:
     branches: [ master ]
 
