@@ -193,7 +193,8 @@ class audio(commands.Cog):
                                     await play_clip(client, data[3])
                     await message.delete()
 
-    @commands.command(pass_context=True, aliases=['p', 'PLAY', 'P'],
+    @commands.command(pass_context=True,
+                      aliases=['p', 'PLAY', 'P'],
                       brief="Plays a clip with the same name as the argument. alt command = 'p'",
                       description="Makes the bot play one of the soundboard files. For example if you wanted to play "
                                   "a file named hammer you would enter '.play hammer'/'.p hammer'")
@@ -225,7 +226,8 @@ class audio(commands.Cog):
         await play_clip(ctx.voice_client, filename)
         await ctx.message.delete()
 
-    @commands.command(pass_context=True, aliases=['yt', 'YOUTUBE', 'YT'],
+    @commands.command(pass_context=True,
+                      aliases=['yt', 'YOUTUBE', 'YT'],
                       brief="Plays the youtube clip at the url in the argument. alt command = 'yt'",
                       description="Makes the bot play a youtube videos audio. For example if you wanted to play the "
                                   "youtube video at 'https://www.youtube.com/watch?v=1234' you would enter '.youtube "
@@ -239,7 +241,8 @@ class audio(commands.Cog):
             ctx.voice_client.play(player)
         await ctx.message.delete()
 
-    @commands.command(pass_context=True, aliases=['STREAM'],
+    @commands.command(pass_context=True,
+                      aliases=['STREAM'],
                       brief="Streams from a url (same as yt, but doesn't pre-download)",
                       description="Streams from a url (same as yt, but doesn't pre-download)")
     async def stream(self, ctx, *, url):
@@ -249,7 +252,8 @@ class audio(commands.Cog):
             ctx.voice_client.play(player)
         await ctx.message.delete()
 
-    @commands.command(pass_context=True, aliases=['l', 'LEAVE', 'L'],
+    @commands.command(pass_context=True,
+                      aliases=['l', 'LEAVE', 'L'],
                       brief="Make the bot leave the voice server. alt command = 'l'",
                       description="Makes the bot leave the voice server.")
     async def leave(self, ctx):
@@ -268,7 +272,9 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
-    @commands.command(pass_context=True, aliases=['PAUSE'], brief="Pause everything the bot is playing",
+    @commands.command(pass_context=True,
+                      aliases=['PAUSE'],
+                      brief="Pause everything the bot is playing",
                       description="Makes the bot pause anything that it is playing.")
     async def pause(self, ctx):
         """Pauses whatever the bot is playing"""
@@ -283,7 +289,8 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
-    @commands.command(pass_context=True, aliases=['r', 'RESUME', 'R'],
+    @commands.command(pass_context=True,
+                      aliases=['r', 'RESUME', 'R'],
                       brief="Resume playing paused Music. alt command = 'r'",
                       description="Makes the bot resume playing any paused audio.")
     async def resume(self, ctx):
@@ -298,9 +305,10 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
-    @commands.command(pass_context=True, aliases=['s', 'STOP', 'S'],
-                      brief="Stop any Music the bot is playing or has paused. alt "
-                            "command = 's'", description="Makes the bot stop playing any audio and forget what it was "
+    @commands.command(pass_context=True,
+                      aliases=['s', 'STOP', 'S'],
+                      brief="Stop any Music the bot is playing or has paused. alt command = 's'",
+                      description="Makes the bot stop playing any audio and forget what it was "
                                                          "playing and when it stopped.")
     async def stop(self, ctx):
         """Stops playing whatever is playing"""
@@ -315,7 +323,9 @@ class audio(commands.Cog):
 
         await ctx.message.delete()
 
-    @commands.command(pass_context=True, aliases=['v', 'VOLUME', 'V', 'vol'], brief="changes the volume of the bot",
+    @commands.command(pass_context=True,
+                      aliases=['v', 'VOLUME', 'V', 'vol'],
+                      brief="changes the volume of the bot",
                       description="Changes the volume of the bot.")
     async def volume(self, ctx, volume: int):
         """Change the volume the bot plays back at"""
@@ -328,9 +338,12 @@ class audio(commands.Cog):
         await ctx.message.delete()
         await ctx.send(f"Changed volume to {volume}")
 
-    @commands.command(pass_context=True, aliases=[], brief="",
+    @commands.command(pass_context=True,
+                      aliases=[],
+                      brief="",
                       description="")
     async def reddit(self, ctx):
+        """uses a markov chain to generate a sentence based on 120k reddit posts from 2007 and say it using TTS."""
         settings.logger.info(f"reddit from {ctx.author}")
         sent = None
         while sent is None:
@@ -344,7 +357,7 @@ class audio(commands.Cog):
                       brief="",
                       description="")
     async def say(self, ctx, text):
-        """  """
+        """Say the given string in the audio channel using TTS."""
         settings.logger.info(f"say from {ctx.author} text:{text}")
         text = text.strip().lower()
         gTTS(text).save('soundboard/say.mp3')
@@ -368,7 +381,7 @@ class audio(commands.Cog):
 
     @tasks.loop(seconds=0, minutes=0, hours=24)
     async def maintenance(self):
-        """Changes the bot to a randomly provided status."""
+        """task to run maintenance, including removing unneeded youtube clips and"""
         clean_youtube()
         settings.soundboard_db.verify_db()
         settings.logger.info(f"Maintenance completed")

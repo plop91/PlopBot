@@ -48,6 +48,12 @@ class general(commands.Cog):
             addToJson("info.json", settings.info_json, "status", tag)
             await ctx.message.delete()
 
+    @commands.command()
+    async def repeat(self, ctx, times: int, content='repeating...'):
+        """Repeats a message multiple times."""
+        for i in range(times):
+            await ctx.send(content)
+
     @commands.command(brief="List the previous statuses the bot will loop through.")
     async def status(self, ctx):
         """Lists statuses the bot will cycle through."""

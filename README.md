@@ -48,6 +48,11 @@ Build and run the bot making sure you mount the correct location for your source
     docker build -t "discord" . && docker run -v PATH_TO_SOURCE_DIR:/usr/src/app/ --detach --name DiscordBot "discord"
 
 ### Python:
-Runs the bot, the boolean is for testing and will be replaced in future builds with the choice of json name.
+Run the bot. If your json file uses a name other than json.info, you can specify it using --json. You can also override
+any of the database connection options by specifying them, otherwise they will be taken from the info.json file.
     
-    python3 BotHead.py false
+    python3 BotHead.py  [-h] [--json JSON] 
+                        [--db_host DB_HOST] 
+                        [--db_username DB_USERNAME] 
+                        [--db_password DB_PASSWORD]
+                        [--db_name DB_NAME]
