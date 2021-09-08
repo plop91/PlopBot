@@ -5,6 +5,7 @@ Settings file for the bot, contains json data, databases and logging.
 
 import mysql.connector
 from mysql.connector import errorcode
+from datetime import datetime
 import json
 import logging
 import os
@@ -47,7 +48,9 @@ def init(args):
 
     # <json------------------------------------------------------------------------------------------------------------>
     global info_json
-    info_json = readJson(args.json)
+    with open(args.json) as f:
+        info_json = json.load(f)
+        f.close()
     global token
     token = info_json["token"]
     # <json------------------------------------------------------------------------------------------------------------>
@@ -82,19 +85,24 @@ def init(args):
 
 class SoundboardDBManager:
     def __init__(self, db_host, db_username, db_password, database_name):
-        try:
-            self.db_host = db_host
-            self.db_username = db_username
-            self.db_password = db_password
-            self.database_name = database_name
+        self.db = None
+        self.my_cursor = None
 
+        self.db_host = db_host
+        self.db_username = db_username
+        self.db_password = db_password
+        self.database_name = database_name
+
+        self.connect()
+
+    def connect(self):
+        try:
             self.db = mysql.connector.connect(
                 host=self.db_host,
                 user=self.db_username,
                 password=self.db_password,
                 database=self.database_name
             )
-
             self.my_cursor = self.db.cursor()
         except mysql.connector.Error as e:
             if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
@@ -107,8 +115,8 @@ class SoundboardDBManager:
     def add_db_entry(self, filename: str, name: str):
         """Adds given filename to database with the given name"""
         try:
-            sql = "INSERT INTO discord_soundboard (filename, name) VALUES (%s, %s)"
-            val = (filename, name)
+            sql = "INSERT INTO discord_soundboard (filename, name, date_added) VALUES (%s, %s, %s)"
+            val = (filename, name, datetime.now())
             self.my_cursor.execute(sql, val)
             self.db.commit()
             logger.info(f"adding sound to db filename:{filename}  name:{name}")
@@ -118,16 +126,10 @@ class SoundboardDBManager:
             if e.errno == errorcode.CR_SERVER_GONE_ERROR:
                 logger.info(f"server gone error attempting recovery")
                 try:
-                    self.db = mysql.connector.connect(
-                        host=self.db_host,
-                        user=self.db_username,
-                        password=self.db_password,
-                        database=self.database_name
-                    )
-                    self.my_cursor = self.db.cursor()
+                    self.connect()
 
-                    sql = "INSERT INTO discord_soundboard (filename, name) VALUES (%s, %s)"
-                    val = (filename, name)
+                    sql = "INSERT INTO discord_soundboard (filename, name, date_added) VALUES (%s, %s, %s)"
+                    val = (filename, name, datetime.now())
                     self.my_cursor.execute(sql, val)
                     self.db.commit()
                     logger.info(f"adding sound to db filename:{filename}  name:{name}")
@@ -153,13 +155,7 @@ class SoundboardDBManager:
             if e.errno == errorcode.CR_SERVER_GONE_ERROR:
                 logger.info(f"server gone error attempting recovery")
                 try:
-                    self.db = mysql.connector.connect(
-                        host=self.db_host,
-                        user=self.db_username,
-                        password=self.db_password,
-                        database=self.database_name
-                    )
-                    self.my_cursor = self.db.cursor()
+                    self.connect()
 
                     sql = "DELETE FROM discord_soundboard WHERE name = %s"
                     adr = (filename,)
@@ -185,19 +181,14 @@ class SoundboardDBManager:
             self.my_cursor.execute(sql)
             my_result = self.my_cursor.fetchall()
             logger.info("list database files")
+            print(my_result)
             return my_result
 
         except mysql.connector.Error as e:
             if e.errno == errorcode.CR_SERVER_GONE_ERROR:
                 logger.info(f"server gone error attempting recovery")
                 try:
-                    self.db = mysql.connector.connect(
-                        host=self.db_host,
-                        user=self.db_username,
-                        password=self.db_password,
-                        database=self.database_name
-                    )
-                    self.my_cursor = self.db.cursor()
+                    self.connect()
 
                     sql = "SELECT * FROM discord_soundboard"
                     self.my_cursor.execute(sql)
@@ -217,11 +208,32 @@ class SoundboardDBManager:
             logger.warning(e)
 
     def verify_db(self):
-        """Checks database against files on server and manages database accordingly"""
+        """Checks database against files on server and manages database accordingly
+        #Note: This function is very inefficient and needs optimization
+        """
         logger.info(f"verifying soundboard db!")
+        db_files = []
         try:
-            db_files = self.list_db_files()
+            db_files = self.list_db_files()  # get list of database files
 
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
+                logger.info(f"server gone error attempting recovery")
+                try:
+                    self.connect()
+                    db_files = self.list_db_files()
+
+                except Exception as e:
+                    logger.warning(f"unknown exception while adding to db!")
+                    logger.warning(e)
+            else:
+                logger.warning(f"unknown exception while verifying db!")
+                logger.warning(e)
+
+        except Exception as e:
+            logger.warning(f"unknown exception while verifying db!")
+            logger.warning(e)
+        try:
             for file in os.listdir("./soundboard"):
                 if file.endswith(".mp3"):
                     for temp in db_files:
@@ -240,66 +252,9 @@ class SoundboardDBManager:
                             self.add_db_entry(file.lower(), file.replace(".mp3", "").lower())
                         except ValueError:
                             continue
-
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
-                logger.info(f"server gone error attempting recovery")
-                try:
-                    self.db = mysql.connector.connect(
-                        host=self.db_host,
-                        user=self.db_username,
-                        password=self.db_password,
-                        database=self.database_name
-                    )
-                    self.my_cursor = self.db.cursor()
-
-                    db_files = self.list_db_files()
-
-                    for file in os.listdir("./soundboard"):
-                        if file.endswith(".mp3"):
-                            for temp in db_files:
-                                if temp[0] == file:
-                                    db_files.remove(temp)
-
-                    for file in db_files:
-                        self.remove_db_entry(file[1])
-
-                    for file in os.listdir("./soundboard"):
-                        if file.endswith(".mp3"):
-                            if [db_file for db_file in db_files if db_file[1] == file]:
-                                continue
-                            else:
-                                try:
-                                    self.add_db_entry(file.lower(), file.replace(".mp3", "").lower())
-                                except ValueError:
-                                    continue
-
-                except Exception as e:
-                    logger.warning(f"unknown exception while adding to db!")
-                    logger.warning(e)
-            else:
-                logger.warning(f"unknown exception while verifying db!")
-                logger.warning(e)
-
         except Exception as e:
             logger.warning(f"unknown exception while verifying db!")
             logger.warning(e)
-
-
-def readToken(filename):
-    """reads a token from a file"""
-    with open(filename, "r") as f:
-        temp_token = f.readlines()
-        f.close()
-        return temp_token[0].strip()
-
-
-def readJson(filename):
-    """reads and returns json data"""
-    with open(filename) as f:
-        data = json.load(f)
-        f.close()
-        return data
 
 
 def addToJson(filename, json_data, tag, data):
