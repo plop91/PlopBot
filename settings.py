@@ -181,7 +181,6 @@ class SoundboardDBManager:
             self.my_cursor.execute(sql)
             my_result = self.my_cursor.fetchall()
             logger.info("list database files")
-            print(my_result)
             return my_result
 
         except mysql.connector.Error as e:

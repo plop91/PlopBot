@@ -136,4 +136,5 @@ howto.txt
 *.docx
 *.json
 *.mp3
+*.txt
 /texts/

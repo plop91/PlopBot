@@ -2,10 +2,11 @@
 FROM python:3.7
 # Set working dir to the app folder.
 WORKDIR /usr/src/app
-# Copy all source code into the container
-COPY . /usr/src/app/
-# Create a volume so soundboard files are saved on server, must mount with -v to the folder you are copying source from
-VOLUME ["/usr/src/app/"]
+# Clone git repo
+RUN git clone https://github.com/plop91/PlopBot.git
+WORKDIR /usr/src/app/PlopBot/
+# Create a volume so soundboard and info files can be saved on server, must mount with -v
+VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/
 # Install dependencies.
 RUN apt-get update && apt-get install -y ffmpeg
 RUN python3 -m pip install -r requirements.txt
