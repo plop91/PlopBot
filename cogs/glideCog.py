@@ -21,19 +21,28 @@ class glide(commands.Cog):
         """"""
         settings.logger.info(f"gen image from {ctx.author} : {prompt}")
         webhook = None
-        webhooks = ctx.channel.webhooks()
+        webhooks = await ctx.channel.webhooks()
         for hook in webhooks:
             if hook.name == 'glide':
                 webhook = hook
         if webhook is None:
             webhook = await ctx.channel.create_webhook(name='glide')
         webhook = webhook.url
-        await ctx.channel.send("generating image")
-        _json = {"un": "ian", "pw": "plop", "prompt": prompt, "messageid": ctx.message.id, "webhook": webhook}
-        response = requests.post(self.url, json=_json)
-        with open("gen.jpg", "wb") as f:
-            f.write(response.content)
-        await ctx.channel.send(file=discord.File("gen.jpg"))
+        _json = {"un": "ian", "pw": "plop", "prompt": str(prompt), "messageid": ctx.message.id, "webhook_url": str(webhook)}
+        try:
+            response = requests.post(self.url, json=_json)
+            response.raise_for_status()
+            if response.status_code == requests.codes.ok:
+                await ctx.channel.send("generating image")
+            else:
+                raise RuntimeError("invalid status code")
+        except Exception as e:
+            settings.logger.warning(e)
+            await ctx.channel.send("Image generation failed")
+        # response = requests.post(self.url, json=_json)
+        # with open("gen.jpg", "wb") as f:
+        #     f.write(response.content)
+        # await ctx.channel.send(file=discord.File("gen.jpg"))
 
 
 def setup(client):
