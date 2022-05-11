@@ -158,8 +158,7 @@ class audio(commands.Cog):
                             # If the clip is too long it needs to be reviewed
                             if float(audio_json['streams'][0]['duration']) >= 60:
                                 await message.channel.send("The clip is longer than a minute and will need to be "
-                                                           "reviewed before it can be played, thank jon for this "
-                                                           "feature.")
+                                                           "reviewed before it can be played.")
                             else:
                                 try:
                                     shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
