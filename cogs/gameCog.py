@@ -1,6 +1,6 @@
 import discord
 import settings
-from settings import addToJson
+from settings import add_to_json
 from discord.ext import commands
 import random
 
@@ -19,7 +19,7 @@ class game(commands.Cog):
                       description="")
     async def add_scribble(self, ctx, tag):
         tag = tag.strip().lower()
-        addToJson("info.json", settings.info_json, "scribble", tag)
+        add_to_json("info.json", settings.info_json, "scribble", tag)
         await ctx.message.delete()
 
     @commands.command(pass_context=True, aliases=['list'],
@@ -66,5 +66,5 @@ class game(commands.Cog):
         await ctx.message.delete()
 
 
-def setup(client):
-    client.add_cog(game(client))
+async def setup(client):
+    await client.add_cog(game(client))

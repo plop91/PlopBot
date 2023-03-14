@@ -61,5 +61,5 @@ class twitter(commands.Cog):
                 wget.download(media_file, "image.jpg")
 
 
-def setup(client):
-    client.add_cog(twitter(client))
+async def setup(client):
+    await client.add_cog(twitter(client))

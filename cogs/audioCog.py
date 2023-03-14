@@ -1,3 +1,5 @@
+import logging
+
 from discord.ext import commands, tasks
 from discord.errors import ClientException
 from discord.utils import get
@@ -65,49 +67,22 @@ def clean_youtube():
         os.remove(os.path.join("youtube", f))
 
 
-async def play_clip(client, filename):
-    try:
-        if filename == "random":
-            sounds = []
-            for file in os.listdir("soundboard"):
-                if file.endswith(".mp3"):
-                    sounds.append(file)
-            source = discord.PCMVolumeTransformer(
-                discord.FFmpegPCMAudio(source=f"soundboard/{random.choice(sounds)}"))
-        else:
-            if os.path.exists(f"soundboard/{filename.lower().strip()}.mp3"):
-                source = discord.PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio(source=f"soundboard/{filename.lower().strip()}.mp3"))
-            else:
-                return
-        client.play(source)
-
-    except AttributeError as e:
-        settings.logger.info(f"Attribute Error:")
-        settings.logger.info(e)
-
-    except PermissionError as e:
-        settings.logger.warning(f"Permission Error:")
-        settings.logger.warning(e)
-
-    except ClientException as e:
-        settings.logger.warning(f"Client Exception:")
-        settings.logger.warning(e)
-
-    except Exception as e:
-        settings.logger.warning(f"unknown exception")
-        settings.logger.warning(e)
-
-
 class audio(commands.Cog):
     volume = 0.7
 
     def __init__(self, client):
         self.client = client
         self.maintenance.start()
-        with open("reddit.json") as f:
-            model_json = json.load(f)
-        self.reddit_text_model = markovify.Text.from_json(model_json)
+        self.models = {}
+        self.sounds = {}
+        for file in os.listdir("soundboard"):
+            if file.endswith(".mp3"):
+                temp = file.strip().replace(".mp3", "").lower()
+                self.sounds[temp] = "soundboard/" + file
+        for markov in os.listdir("markov"):
+            if ".json" in markov:
+                with open("markov/{}".format(markov)) as f:
+                    self.models[markov.replace('.json', '')] = markovify.Text.from_json(json.load(f))
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -125,11 +100,11 @@ class audio(commands.Cog):
         interprets webhook commands. """
         # If the message is not from the bot itself.
         if message.author != self.client.user:
-            # If there is a attachment
+            # If there is an attachment
             if message.attachments:
                 # For each attachment
                 for attachment in message.attachments:
-                    # If the file is an mp3
+                    # If the file is a mp3
                     if attachment.filename.endswith(".mp3"):
                         # If a file with that name is already in the soundboard folder
                         if os.path.exists(f"./soundboard/{attachment.filename.lower().replace(' ', '')}"):
@@ -164,6 +139,7 @@ class audio(commands.Cog):
                                     shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
                                     settings.soundboard_db.add_db_entry(filename.lower(),
                                                                         filename.replace(".mp3", "").lower())
+                                    self.sounds[filename.replace(".mp3", "").lower()] = f"./soundboard/{filename}"
                                 except ValueError:
                                     await message.channel.send("A file with that name already existed in the database, "
                                                                "contact an admin!")
@@ -189,8 +165,39 @@ class audio(commands.Cog):
                                     if client.is_paused():
                                         client.resume()
                                 elif data[2] == "play":
-                                    await play_clip(client, data[3])
+                                    await self.play_clip(message, client, self.sounds[data[3]])
                     await message.delete()
+
+    async def play_clip(self, ctx, client, filename):
+        try:
+            if filename == "random":
+                filename = random.choice(list(self.sounds.values()))
+                source = discord.PCMVolumeTransformer(
+                    discord.FFmpegPCMAudio(source=f"{filename}"))
+            else:
+                if filename in self.sounds:
+                    source = discord.PCMVolumeTransformer(
+                        discord.FFmpegPCMAudio(source=f"{self.sounds[filename]}"))
+                else:
+                    await ctx.send("That clip does not exist.")
+                    return
+            client.play(source)
+
+        except AttributeError as e:
+            settings.logger.info(f"Attribute Error:")
+            settings.logger.info(e)
+
+        except PermissionError as e:
+            settings.logger.warning(f"Permission Error:")
+            settings.logger.warning(e)
+
+        except ClientException as e:
+            settings.logger.warning(f"Client Exception:")
+            settings.logger.warning(e)
+
+        except Exception as e:
+            settings.logger.warning(f"unknown exception")
+            settings.logger.warning(e)
 
     @commands.command(pass_context=True,
                       aliases=['p', 'PLAY', 'P'],
@@ -198,31 +205,30 @@ class audio(commands.Cog):
                       description="Makes the bot play one of the soundboard files. For example if you wanted to play "
                                   "a file named hammer you would enter '.play hammer'/'.p hammer'")
     async def play(self, ctx, filename=None):
-        """Plays an mp3 from the library of downloaded mp3's"""
+        """Plays a mp3 from the library of downloaded mp3's"""
         settings.logger.info(f"play from {ctx.author} :{filename}")
-
-        if filename is None:
-            embed_var = discord.Embed(title="Soundboard files", description="type '.play ' followed by a name to play "
-                                                                            "file", color=0x00ff00)
-            s = ""
-            for file in os.listdir("soundboard"):
-                if file.endswith(".mp3"):
-                    temp = file.strip().replace(".mp3", "").lower()
-                    if len(s) + len(temp) >= 1024:
+        if ctx.author not in settings.info_json["blacklist"]:
+            if filename is None:
+                embed_var = discord.Embed(title="Soundboard files",
+                                          description="type '.play ' followed by a name to play "
+                                                      "file", color=0x00ff00)
+                s = ""
+                for file in self.sounds.keys():
+                    if len(s) + len(file) >= 1024:
                         embed_var.add_field(name="play from a filename:", value=s, inline=False)
                         s = ""
-                    s += temp + ", "
+                    s += file + ", "
 
-            embed_var.add_field(name="play from a filename:", value=s, inline=False)
+                embed_var.add_field(name="play from a filename:", value=s, inline=False)
 
-            embed_var.add_field(name="play a random file:", value="random", inline=False)
+                embed_var.add_field(name="play a random file:", value="random", inline=False)
 
-            await ctx.channel.send(embed=embed_var)
-            await ctx.message.delete()
+                await ctx.channel.send(embed=embed_var)
+                await ctx.message.delete()
 
-            return
+                return
 
-        await play_clip(ctx.voice_client, filename)
+            await self.play_clip(ctx, ctx.voice_client, self.sounds[filename])
         await ctx.message.delete()
 
     @commands.command(pass_context=True,
@@ -231,7 +237,7 @@ class audio(commands.Cog):
                       description="Makes the bot play a youtube videos audio. For example if you wanted to play the "
                                   "youtube video at 'https://www.youtube.com/watch?v=1234' you would enter '.youtube "
                                   "https://www.youtube.com/watch?v=1234'/'.yt https://www.youtube.com/watch?v=1234'")
-    async def youtube(self, ctx, *, url):
+    async def youtube(self, ctx, *, url, filename=None):
         """Downloads and plays the audio of the provided youtube link. Plays from a url (almost anything youtube_dl
         supports) """
         settings.logger.info(f"youtube from {ctx.author} :{url}")
@@ -308,7 +314,7 @@ class audio(commands.Cog):
                       aliases=['s', 'STOP', 'S'],
                       brief="Stop any Music the bot is playing or has paused. alt command = 's'",
                       description="Makes the bot stop playing any audio and forget what it was "
-                                                         "playing and when it stopped.")
+                                  "playing and when it stopped.")
     async def stop(self, ctx):
         """Stops playing whatever is playing"""
         settings.logger.info(f"stop from {ctx.author}")
@@ -338,34 +344,46 @@ class audio(commands.Cog):
         await ctx.send(f"Changed volume to {volume}")
 
     @commands.command(pass_context=True,
+                      aliases=['g', 'GET', 'G'],
+                      brief="returns a soundbite",
+                      description="returns a soundbite")
+    async def get(self, ctx, sound: str):
+        if os.path.isfile(os.path.join("soundboard", sound)):
+            await ctx.channel.send(sound, file=discord.File(sound + ".mp3", os.path.join("soundboard", sound)))
+
+    @commands.command(pass_context=True,
                       aliases=[],
                       brief="",
-                      description="")
-    async def reddit(self, ctx):
-        """uses a markov chain to generate a sentence based on 120k reddit posts from 2007 and say it using TTS."""
+                      description="Uses a markov chain to generate a sentence and say it using TTS")
+    async def markov(self, ctx, model_name, output_file='soundboard/markov.mp3'):
+        """uses a markov chain to generate a sentence and say it using TTS."""
         settings.logger.info(f"reddit from {ctx.author}")
-        sent = None
-        while sent is None:
-            sent = self.reddit_text_model.make_sentence(tries=1000)
-        tts = gTTS(sent)
-        tts.save('soundboard/reddit.mp3')
-        await play_clip(ctx.voice_client, "reddit")
+        if model_name in self.models:
+            sent = None
+            while sent is None:
+                sent = self.models[model_name].make_sentence(tries=1000)
+            tts = gTTS(sent)
+            tts.save(output_file)
+            await self.play_clip(ctx, ctx.voice_client, output_file)
+        else:
+            settings.logger.warning("markov model does not exist")
+            await ctx.send("model does not exist")
         await ctx.message.delete()
 
     @commands.command(aliases=['SAY'],
                       brief="",
                       description="")
-    async def say(self, ctx, text):
+    async def say(self, ctx, text, *, tts_file='soundboard/say.mp3'):
         """Say the given string in the audio channel using TTS."""
         settings.logger.info(f"say from {ctx.author} text:{text}")
         text = text.strip().lower()
-        gTTS(text).save('soundboard/say.mp3')
-        await play_clip(ctx.voice_client, "say")
+        gTTS(text).save(tts_file)
+        await self.play_clip(ctx, ctx.voice_client, tts_file)
         await ctx.message.delete()
 
     @play.before_invoke
     @youtube.before_invoke
-    @reddit.before_invoke
+    @markov.before_invoke
     @say.before_invoke
     async def ensure_voice(self, ctx):
         """Verifies the bot is in a voice channel before it tries to play something new."""
@@ -378,6 +396,28 @@ class audio(commands.Cog):
         elif ctx.voice_client.is_playing():
             ctx.voice_client.stop()
 
+    @commands.command(brief="Admin only command: temporarily redirect play commands.")
+    async def hijack(self, ctx, filename, command, input):
+        """Admin only command: temporarily redirect play commands"""
+        settings.logger.info(f"hijack from {ctx.author}")
+        if str(ctx.author) in settings.info_json["admins"]:
+            if filename in self.sounds:
+                if command == "play":
+                    self.sounds[filename] = "soundboards/" + input
+                    await ctx.send(f"Hijacked {filename} to {input}")
+                elif command == "youtube":
+                    pass
+                elif command == "markov":
+                    self.sounds[filename] = "markov/" + input
+                    await ctx.markov(ctx, input)
+                elif command == "say":
+                    pass
+                else:
+                    await ctx.send("Invalid command")
+
+
+
+
     @tasks.loop(seconds=0, minutes=0, hours=24)
     async def maintenance(self):
         """task to run maintenance, including removing unneeded youtube clips and"""
@@ -386,5 +426,5 @@ class audio(commands.Cog):
         settings.logger.info(f"Maintenance completed")
 
 
-def setup(client):
-    client.add_cog(audio(client))
+async def setup(client):
+    await client.add_cog(audio(client))

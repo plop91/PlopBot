@@ -18,7 +18,7 @@ global soundboard_db
 
 
 def init(args):
-    """Initializes all of the global variables"""
+    """Initializes global variables"""
 
     # <logger---------------------------------------------------------------------------------------------------------->
     global logger
@@ -48,7 +48,7 @@ def init(args):
 
     # <json------------------------------------------------------------------------------------------------------------>
     global info_json
-    with open(args.json) as f:
+    with open(args.json, 'r') as f:
         info_json = json.load(f)
         f.close()
     global token
@@ -256,7 +256,7 @@ class SoundboardDBManager:
             logger.warning(e)
 
 
-def addToJson(filename, json_data, tag, data):
+def add_to_json(filename, json_data, tag, data):
     """adds given data to a json file"""
     with open(filename, "w") as file:
         json_data[tag].append(data)
