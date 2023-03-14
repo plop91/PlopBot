@@ -1,5 +1,5 @@
 from discord.ext import commands, tasks
-from settings import addToJson
+from settings import add_to_json
 import settings
 import discord
 import random
@@ -45,7 +45,7 @@ class general(commands.Cog):
         settings.logger.info(f"echo from {ctx.author} : {tag}")
         if tag:
             await self.client.change_presence(status=discord.Status.online, activity=discord.Game(tag))
-            addToJson("info.json", settings.info_json, "status", tag)
+            add_to_json("info.json", settings.info_json, "status", tag)
             await ctx.message.delete()
 
     @commands.command()
@@ -79,5 +79,5 @@ class general(commands.Cog):
             settings.info_json["status"][random.randint(0, len(settings.info_json["status"]) - 1)]))
 
 
-def setup(client):
-    client.add_cog(general(client))
+async def setup(client):
+    await client.add_cog(general(client))

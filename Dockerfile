@@ -1,5 +1,5 @@
 # Build from basic python image
-FROM python:3.7
+FROM python:3.8
 # Set working dir to the app folder.
 WORKDIR /usr/src/app
 # Clone git repo
@@ -12,4 +12,4 @@ VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/
 RUN apt-get update && apt-get install -y ffmpeg
 RUN python3 -m pip install -r requirements.txt
 # Run Bot
-CMD ["python3", "BotHead.py"]
+CMD ["./startup.sh"]
