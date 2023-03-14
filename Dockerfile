@@ -12,4 +12,4 @@ VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/
 RUN apt-get update && apt-get install -y ffmpeg
 RUN python3 -m pip install -r requirements.txt
 # Run Bot
-CMD ["./startup.sh"]
+CMD ["python3", "BotHead.py"]
