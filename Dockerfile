@@ -7,7 +7,7 @@ RUN git clone https://github.com/plop91/PlopBot.git
 # Set working dir to the git repo
 WORKDIR /usr/src/app/PlopBot/
 # Create a volume so soundboard and info files can be saved on server, must mount with -v
-VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/
+VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/ /usr/src/app/PlopBot/markov/
 # Install dependencies.
 RUN apt-get update && apt-get install -y ffmpeg
 RUN python3 -m pip install -r requirements.txt
