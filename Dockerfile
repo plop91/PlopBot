@@ -3,7 +3,7 @@ FROM python:3.8
 # Set working dir to the app folder.
 WORKDIR /usr/src/app
 # Clone git repo
-RUN git clone --branch glide https://github.com/plop91/PlopBot.git
+RUN git clone https://github.com/plop91/PlopBot.git
 # Set working dir to the git repo
 WORKDIR /usr/src/app/PlopBot/
 # Create a volume so soundboard and info files can be saved on server, must mount with -v
