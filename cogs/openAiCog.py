@@ -19,7 +19,8 @@ class openAI(commands.Cog):
         """Logs that the cog was loaded properly"""
         settings.logger.info(f"openai cog ready!")
 
-    @commands.command(pass_context=True, brief="generate an image from a prompt using openai")
+    @commands.command(pass_context=True, aliases=["gen_img", "genimg", "genimage", "gen_image"],
+                      brief="generate an image from a prompt using openai")
     async def gen_img(self, ctx, *args):
         """
         Generate an image from a prompt using openai
