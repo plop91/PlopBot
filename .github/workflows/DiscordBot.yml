@@ -5,9 +5,7 @@ name: DiscordBot
 
 on:
   push:
-    branches: [ master, docker-repo-test ]
-  pull_request:
-    branches: [ master ]
+    branches: *
 
 jobs:
   build:
@@ -60,4 +58,4 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: plop91/plop_discord:v2
+          tags: plop91/plop_discord:v2.1
