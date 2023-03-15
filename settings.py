@@ -1,6 +1,5 @@
 """
 Settings file for the bot, contains json data, databases and logging.
-
 """
 
 import mysql.connector
@@ -84,6 +83,9 @@ def init(args):
 
 
 class SoundboardDBManager:
+    """
+    Manages the soundboard database
+    """
     def __init__(self, db_host, db_username, db_password, database_name):
         self.db = None
         self.my_cursor = None
@@ -96,6 +98,7 @@ class SoundboardDBManager:
         self.connect()
 
     def connect(self):
+        """Connects to the database"""
         try:
             self.db = mysql.connector.connect(
                 host=self.db_host,

@@ -175,9 +175,9 @@ class audio(commands.Cog):
                 source = discord.PCMVolumeTransformer(
                     discord.FFmpegPCMAudio(source=f"{filename}"))
             else:
-                if filename in self.sounds:
+                if filename + ".mp3" in os.listdir("soundboard"):
                     source = discord.PCMVolumeTransformer(
-                        discord.FFmpegPCMAudio(source=f"{self.sounds[filename]}"))
+                        discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"))
                 else:
                     await ctx.send("That clip does not exist.")
                     return
@@ -228,7 +228,7 @@ class audio(commands.Cog):
 
                 return
 
-            await self.play_clip(ctx, ctx.voice_client, self.sounds[filename])
+            await self.play_clip(ctx, ctx.voice_client, filename)
         await ctx.message.delete()
 
     @commands.command(pass_context=True,
@@ -396,24 +396,24 @@ class audio(commands.Cog):
         elif ctx.voice_client.is_playing():
             ctx.voice_client.stop()
 
-    @commands.command(brief="Admin only command: temporarily redirect play commands.")
-    async def hijack(self, ctx, filename, command, input):
-        """Admin only command: temporarily redirect play commands"""
-        settings.logger.info(f"hijack from {ctx.author}")
-        if str(ctx.author) in settings.info_json["admins"]:
-            if filename in self.sounds:
-                if command == "play":
-                    self.sounds[filename] = "soundboards/" + input
-                    await ctx.send(f"Hijacked {filename} to {input}")
-                elif command == "youtube":
-                    pass
-                elif command == "markov":
-                    self.sounds[filename] = "markov/" + input
-                    await ctx.markov(ctx, input)
-                elif command == "say":
-                    pass
-                else:
-                    await ctx.send("Invalid command")
+    # @commands.command(brief="Admin only command: temporarily redirect play commands.")
+    # async def hijack(self, ctx, filename, command, input):
+    #     """Admin only command: temporarily redirect play commands"""
+    #     settings.logger.info(f"hijack from {ctx.author}")
+    #     if str(ctx.author) in settings.info_json["admins"]:
+    #         if filename in self.sounds:
+    #             if command == "play":
+    #                 self.sounds[filename] = "soundboards/" + input
+    #                 await ctx.send(f"Hijacked {filename} to {input}")
+    #             elif command == "youtube":
+    #                 pass
+    #             elif command == "markov":
+    #                 self.sounds[filename] = "markov/" + input
+    #                 await ctx.markov(ctx, input)
+    #             elif command == "say":
+    #                 pass
+    #             else:
+    #                 await ctx.send("Invalid command")
 
 
 

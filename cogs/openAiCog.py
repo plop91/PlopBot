@@ -38,6 +38,23 @@ class openAI(commands.Cog):
         await ctx.send(file=discord.File(image_filename))
         os.remove(image_filename)
 
+    @commands.command(pass_context=True, brief="generate text from a prompt using openai")
+    async def gen_text(self, ctx, *args):
+        """
+        Generate text from a prompt using openai
+        :param ctx: Context
+        :param args: Arguments
+        """
+        prompt = ' '.join(args)
+        settings.logger.info(f"generating text")
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            temperature=0,
+            max_tokens=150,
+        )
+        await ctx.send(response['choices'][0]['text'])
+
 
 async def setup(client):
     await client.add_cog(openAI(client))
