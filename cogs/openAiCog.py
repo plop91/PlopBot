@@ -1,3 +1,6 @@
+"""
+This cog is for generating images and text using openai
+"""
 import discord
 import settings
 from settings import add_to_json
@@ -39,7 +42,8 @@ class openAI(commands.Cog):
         await ctx.send(file=discord.File(image_filename))
         os.remove(image_filename)
 
-    @commands.command(pass_context=True, brief="generate text from a prompt using openai")
+    @commands.command(pass_context=True, aliases=["gentext", "gentxt", "gen_txt", "text"],
+                      brief="generate text from a prompt using openai")
     async def gen_text(self, ctx, *args):
         """
         Generate text from a prompt using openai
