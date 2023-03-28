@@ -9,3 +9,4 @@ pynacl >= 1.4.0                     # additional networking, required by audioCo
 markovify >= 0.9.0                  # markov chain library, required by audioCog.py
 gtts >= 2.2.2                       # google text to speech, required by audioCog.py
 openai                              # openai api, required by openaiCog.py
+Pillow

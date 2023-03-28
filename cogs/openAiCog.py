@@ -8,6 +8,7 @@ from discord.ext import commands
 import openai
 import wget
 import os
+from PIL import Image
 
 
 class openAI(commands.Cog):
@@ -41,6 +42,57 @@ class openAI(commands.Cog):
         image_filename = wget.download(image_url)
         await ctx.send(file=discord.File(image_filename))
         os.remove(image_filename)
+
+    @commands.command(pass_context=True, aliases=["editimg", "editimage", "edit_image"],
+                      brief="edit an image from a prompt using openai")
+    async def edit_img(self, ctx, *args):
+        """
+        Edit an image from a prompt using openai
+        :param ctx: Context
+        :param args: Arguments
+        """
+        if ctx.message.attachments[0] is None:
+            await ctx.send("No image attached")
+            return
+        # elif not ctx.message.attachments[0].filename.endswith('.png'):
+        #     await ctx.send("Image must be png format")
+        #     return
+        await ctx.message.attachments[0].save("temp.png")
+
+        png = Image.open("temp.png")
+        png.load()  # required for png.split()
+        png = png.convert("RGBA")
+        png = png.resize((1024, 1024))
+        png.save("temp.png", 'png', quality=100)
+
+        # mask = Image.new("RGBA", png.size, (255, 255, 255, 0))
+        # mask.putalpha(0)
+        # mask.save("mask.png", 'png', quality=100)
+
+        prompt = ' '.join(args)
+        settings.logger.info(f"editing image")
+        # response = openai.Image.create_edit(
+        #     image=open("temp.png", "rb"),
+        #     mask=open("mask.png", "rb"),
+        #     prompt=prompt,
+        #     n=1,
+        #     size="1024x1024"
+        # )
+        response = openai.Image.create_variation(
+            image=open("temp.png", "rb"),
+            n=1,
+            size="1024x1024"
+        )
+        os.remove("temp.png")
+        os.remove("mask.png")
+        image_url = response['data'][0]['url']
+        image_filename = wget.download(image_url)
+        await ctx.send(file=discord.File(image_filename))
+        os.remove(image_filename)
+
+
+
+
 
     @commands.command(pass_context=True, aliases=["gentext", "gentxt", "gen_txt", "text"],
                       brief="generate text from a prompt using openai")
