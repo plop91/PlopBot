@@ -84,7 +84,7 @@ class openAI(commands.Cog):
             size="1024x1024"
         )
         os.remove("temp.png")
-        os.remove("mask.png")
+        # os.remove("mask.png")
         image_url = response['data'][0]['url']
         image_filename = wget.download(image_url)
         await ctx.send(file=discord.File(image_filename))
