@@ -4,7 +4,7 @@ tweepy >= 3.9.0                     # Twitter interface, required by twitterCog.
 wget >= 3.2                         # Web interface, required by twitterCog.py
 mysql-connector-python >= 8.0.23    # Databse interface, required by settings.py
 ffmpeg-python >= 0.2.0              # Video and audio processing, required by audioCog.py
-youtube_dl >= 2021.3.3              # video downloader, required by audioCog.py
+yt-dlp                              # video downloader, required by audioCog.py
 pynacl >= 1.4.0                     # additional networking, required by audioCog.py
 markovify >= 0.9.0                  # markov chain library, required by audioCog.py
 gtts >= 2.2.2                       # google text to speech, required by audioCog.py

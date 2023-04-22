@@ -9,14 +9,11 @@ import asyncio
 import os
 import json
 import random
-import youtube_dl
+from yt_dlp import YoutubeDL
 import discord
 import ffmpeg
 import shutil
 import settings
-
-# Suppress noise about console usage from errors
-youtube_dl.utils.bug_reports_message = lambda: ''
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -36,7 +33,7 @@ ffmpeg_options = {
     'options': '-vn'
 }
 
-ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+ytdl = YoutubeDL(ytdl_format_options)
 
 
 class YTDLSource(discord.PCMVolumeTransformer):
@@ -51,7 +48,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=False):
         loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+        data = await loop.run_in_executor(None, lambda: ytdl.sanitize_info(ytdl.extract_info(url, download=not stream)))
 
         if 'entries' in data:
             # take first item from a playlist
@@ -238,7 +235,7 @@ class audio(commands.Cog):
                                   "youtube video at 'https://www.youtube.com/watch?v=1234' you would enter '.youtube "
                                   "https://www.youtube.com/watch?v=1234'/'.yt https://www.youtube.com/watch?v=1234'")
     async def youtube(self, ctx, *, url, filename=None):
-        """Downloads and plays the audio of the provided youtube link. Plays from a url (almost anything youtube_dl
+        """Downloads and plays the audio of the provided youtube link. Plays from a url (almost anything yt_dlp
         supports) """
         settings.logger.info(f"youtube from {ctx.author} :{url}")
         async with ctx.typing():
