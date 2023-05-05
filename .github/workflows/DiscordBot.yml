@@ -57,4 +57,4 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: plop91/plop_discord:v2.1
+          tags: plop91/plop_discord:${GITHUB_REF#refs/heads/}
