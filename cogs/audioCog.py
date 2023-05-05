@@ -14,6 +14,7 @@ import discord
 import ffmpeg
 import shutil
 import settings
+from pydub import AudioSegment, effects
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -133,7 +134,12 @@ class audio(commands.Cog):
                                                            "reviewed before it can be played.")
                             else:
                                 try:
-                                    shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
+                                    # shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
+
+                                    rawsound = AudioSegment.from_file(f"./soundboard/raw/{filename}", "mp3")
+                                    normalizedsound = effects.normalize(rawsound)
+                                    normalizedsound.export(f"./soundboard/{filename}", format="mp3")
+
                                     settings.soundboard_db.add_db_entry(filename.lower(),
                                                                         filename.replace(".mp3", "").lower())
                                     self.sounds[filename.replace(".mp3", "").lower()] = f"./soundboard/{filename}"
