@@ -162,11 +162,12 @@ class audio(commands.Cog):
                                     if client.is_paused():
                                         client.resume()
                                 elif data[2] == "play":
-                                    await self.play_clip(message, client, data[3])
+                                    await self.play_clip(message.channel, client, data[3])
                     await message.delete()
 
     async def play_clip(self, ctx, client, filename):
         try:
+            filename = filename.strip()
             if filename == "random":
                 filename = random.choice(list(self.sounds.values()))
                 source = discord.PCMVolumeTransformer(
@@ -177,6 +178,8 @@ class audio(commands.Cog):
                         discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"))
                 else:
                     await ctx.send("That clip does not exist.")
+                    # TODO: remove this test line
+                    settings.logger.info(f"That clip does not exist, test line")
                     return
             client.play(source)
 
