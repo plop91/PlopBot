@@ -163,7 +163,7 @@ class audio(commands.Cog):
                                     if client.is_paused():
                                         client.resume()
                                 elif data[2] == "play":
-                                    await self.play_clip(message.channel, client, data[3])
+                                    await self.play_clip(client.channel, client, data[3])
                     await message.delete()
 
     async def play_clip(self, ctx, client, filename):
