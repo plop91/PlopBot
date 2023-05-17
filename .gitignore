@@ -138,3 +138,9 @@ howto.txt
 *.mp3
 *.txt
 /texts/
+
+test*
+schema.sql
+old/
+*/old/
+utility/
