@@ -14,7 +14,6 @@ import discord
 import ffmpeg
 import shutil
 import settings
-from pydub import AudioSegment, effects
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -134,12 +133,7 @@ class audio(commands.Cog):
                                                            "reviewed before it can be played.")
                             else:
                                 try:
-                                    # shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
-
-                                    rawsound = AudioSegment.from_file(f"./soundboard/raw/{filename}", "mp3")
-                                    normalizedsound = effects.normalize(rawsound)
-                                    normalizedsound.export(f"./soundboard/{filename}", format="mp3")
-
+                                    shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
                                     settings.soundboard_db.add_db_entry(filename.lower(),
                                                                         filename.replace(".mp3", "").lower())
                                     self.sounds[filename.replace(".mp3", "").lower()] = f"./soundboard/{filename}"
@@ -168,7 +162,7 @@ class audio(commands.Cog):
                                     if client.is_paused():
                                         client.resume()
                                 elif data[2] == "play":
-                                    await self.play_clip(message, client, self.sounds[data[3]])
+                                    await self.play_clip(message.author.voice.channel, client, self.sounds[data[3]])
                     await message.delete()
 
     async def play_clip(self, ctx, client, filename):
