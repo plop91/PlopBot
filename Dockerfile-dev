@@ -1,0 +1,18 @@
+# Build from basic python image
+FROM python:3.8
+# Set working dir to the app folder.
+RUN mkdir -p /usr/src/app/PlopBot
+WORKDIR /usr/src/app/PlopBot
+# Copy code
+COPY * ./
+COPY info/* ./info/
+COPY cogs/* ./cogs/
+COPY soundboard/* ./soundboard/
+COPY markov/* ./markov/
+# Create a volume so soundboard and info files can be saved on server, must mount with -v
+#VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/
+# Install dependencies.
+RUN apt-get update && apt-get install -y ffmpeg
+RUN python3 -m pip install -r requirements.txt
+# Run Bot
+CMD ["python3", "BotHead.py"]

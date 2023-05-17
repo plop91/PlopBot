@@ -76,10 +76,11 @@ class audio(commands.Cog):
             if file.endswith(".mp3"):
                 temp = file.strip().replace(".mp3", "").lower()
                 self.sounds[temp] = "soundboard/" + file
-        for markov in os.listdir("markov"):
-            if ".json" in markov:
-                with open("markov/{}".format(markov)) as f:
-                    self.models[markov.replace('.json', '')] = markovify.Text.from_json(json.load(f))
+        if os.path.isdir("markov"):
+            for markov in os.listdir("markov"):
+                if ".json" in markov:
+                    with open("markov/{}".format(markov)) as f:
+                        self.models[markov.replace('.json', '')] = markovify.Text.from_json(json.load(f))
 
     @commands.Cog.listener()
     async def on_ready(self):
