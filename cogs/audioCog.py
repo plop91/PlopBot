@@ -183,7 +183,7 @@ class Audio(commands.Cog):
                 data = message.content.split(':')
                 # check if it has a valid source
                 if data[0] == "www.sodersjerna.com":
-                    member = await discord.utils.get(message.guild.members, name=data[1])
+                    member = discord.utils.get(message.guild.members, name=data[1])
                     if member is not None and member.voice is not None:
                         for client in self.client.voice_clients:
                             if client.channel.id == member.voice.channel.id:
