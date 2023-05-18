@@ -3,7 +3,6 @@ This cog is for generating images and text using openai
 """
 import discord
 import settings
-from settings import add_to_json
 from discord.ext import commands
 import openai
 import wget
@@ -11,16 +10,26 @@ import os
 from PIL import Image
 
 
-class openAI(commands.Cog):
+class OpenAI(commands.Cog):
+    """
+    This cog is for generating images and text using openai
+    """
 
     def __init__(self, client):
+        """
+        Constructor for the openai cog
+        :param client: Client object
+        """
         self.client = client
         self.api_key = settings.info_json["openai"]["apikey"]
         openai.api_key = self.api_key
 
     @commands.Cog.listener()
     async def on_ready(self):
-        """Logs that the cog was loaded properly"""
+        """
+        Logs that the cog was loaded properly
+        :return: None
+        """
         settings.logger.info(f"openai cog ready!")
 
     @commands.command(pass_context=True, aliases=["genimg", "genimage", "gen_image"],
@@ -28,8 +37,9 @@ class openAI(commands.Cog):
     async def gen_img(self, ctx, *args):
         """
         Generate an image from a prompt using openai
-        :param ctx: Context
-        :param args: Arguments
+        :arg ctx: Context of the command
+        :arg args: Arguments
+        :return: None
         """
         prompt = ' '.join(args)
         settings.logger.info(f"generating image")
@@ -48,8 +58,9 @@ class openAI(commands.Cog):
     async def edit_img(self, ctx, *args):
         """
         Edit an image from a prompt using openai
-        :param ctx: Context
-        :param args: Arguments
+        :arg ctx: Context
+        :arg args: Arguments
+        :return: None
         """
         if ctx.message.attachments[0] is None:
             await ctx.send("No image attached")
@@ -90,17 +101,14 @@ class openAI(commands.Cog):
         await ctx.send(file=discord.File(image_filename))
         os.remove(image_filename)
 
-
-
-
-
     @commands.command(pass_context=True, aliases=["gentext", "gentxt", "gen_txt", "text"],
                       brief="generate text from a prompt using openai")
     async def gen_text(self, ctx, *args):
         """
         Generate text from a prompt using openai
-        :param ctx: Context
-        :param args: Arguments
+        :arg ctx: Context
+        :arg args: Arguments
+        :return: None
         """
         prompt = ' '.join(args)
         settings.logger.info(f"generating text")
@@ -114,4 +122,9 @@ class openAI(commands.Cog):
 
 
 async def setup(client):
-    await client.add_cog(openAI(client))
+    """
+    Sets up the cog
+    :param client: Client object
+    :return: None
+    """
+    await client.add_cog(OpenAI(client))

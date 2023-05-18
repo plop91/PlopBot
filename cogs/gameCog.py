@@ -5,19 +5,37 @@ from discord.ext import commands
 import random
 
 
-class game(commands.Cog):
+class Game(commands.Cog):
+    """
+    Game cog for the bot
+    """
 
     def __init__(self, client):
+        """
+        Constructor for the game cog
+        :arg client: Client object
+        :return: None
+        """
         self.client = client
 
     @commands.Cog.listener()
     async def on_ready(self):
+        """
+        Logs that the cog was loaded properly
+        :return: None
+        """
         settings.logger.info(f"game cog ready!")
 
     @commands.command(pass_context=True, aliases=['add'],
                       brief="",
                       description="")
     async def add_scribble(self, ctx, tag):
+        """
+        Adds a scribble word to the list of words
+        :arg ctx: Context of the command
+        :arg tag: tag to add
+        :return: None
+        """
         tag = tag.strip().lower()
         add_to_json("info.json", settings.info_json, "scribble", tag)
         await ctx.message.delete()
@@ -26,6 +44,11 @@ class game(commands.Cog):
                       brief="",
                       description="")
     async def list_scribble(self, ctx):
+        """
+        Lists all the scribble words
+        :arg ctx: Context of the command
+        :return: None
+        """
         embed_var = discord.Embed(title="Scribble words", description="description", color=0x00ff00)
         s = ""
         if len(settings.info_json["scribble"]) > 0:
@@ -42,7 +65,11 @@ class game(commands.Cog):
                       brief="Divides the current channel into two random teams.",
                       description="Divides the current channel into two random teams.")
     async def teams(self, ctx):
-        """Divides the current channel into two random teams."""
+        """
+        Divides the current channel into two random teams.
+        :arg ctx: Context of the command
+        :return: None
+        """
 
         # get current voice channel of author
         voice = ctx.author.voice.channel
@@ -67,4 +94,9 @@ class game(commands.Cog):
 
 
 async def setup(client):
-    await client.add_cog(game(client))
+    """
+    Adds the cog to the client
+    :param client: Client object
+    :return: None
+    """
+    await client.add_cog(Game(client))

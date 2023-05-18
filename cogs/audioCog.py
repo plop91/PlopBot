@@ -72,6 +72,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
 
 class Audio(commands.Cog):
+    """
+    Audio cog for the bot.
+    """
     volume = 0.7
 
     def __init__(self, client):
@@ -176,26 +179,29 @@ class Audio(commands.Cog):
                                                             "on the server")
 
             else:
-                # divide message as though it was a webhook command
-                data = message.content.split(':')
-                # check if it has a valid source
-                if data[0] == "www.sodersjerna.com":
-                    member = await discord.utils.get(message.guild.members, name=data[1])
-                    if member is not None and member.voice is not None:
-                        for client in self.client.voice_clients:
-                            if client.channel.id == member.voice.channel.id:
-                                if data[2] == "stop":
-                                    if client.is_playing():
-                                        client.stop()
-                                elif data[2] == "pause":
-                                    if client.is_playing():
-                                        client.pause()
-                                elif data[2] == "resume":
-                                    if client.is_paused():
-                                        client.resume()
-                                elif data[2] == "play":
-                                    await self.play_clip(client.channel, client, data[3])
-                    await message.delete()
+                try:
+                    # divide message as though it was a webhook command
+                    data = message.content.split(':')
+                    # check if it has a valid source
+                    if data[0] == "www.sodersjerna.com":
+                        member = await discord.utils.get(message.guild.members, name=data[1])
+                        if member is not None and member.voice is not None:
+                            for client in self.client.voice_clients:
+                                if client.channel.id == member.voice.channel.id:
+                                    if data[2] == "stop":
+                                        if client.is_playing():
+                                            client.stop()
+                                    elif data[2] == "pause":
+                                        if client.is_playing():
+                                            client.pause()
+                                    elif data[2] == "resume":
+                                        if client.is_paused():
+                                            client.resume()
+                                    elif data[2] == "play":
+                                        await self.play_clip(client.channel, client, data[3])
+                        await message.delete()
+                except Exception as e:
+                    settings.logger.warning(f"Error in on_message: {e}")
 
     async def play_clip(self, text_channel, voice_channel, filename):
         """

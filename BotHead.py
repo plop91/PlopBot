@@ -16,11 +16,18 @@ class PlopBot(commands.Bot):
     The main bot class.
     """
     def __init__(self, *args, **kwargs):
+        """
+        Constructor for the bot.
+        :arg args:
+        :arg kwargs:
+        :return: None
+        """
         super().__init__(*args, **kwargs)
 
     async def setup_hook(self) -> None:
         """
         Setup hook for the bot, loads all cogs.
+        :return: None
         """
         for f in os.listdir('./cogs'):
             if f.endswith('.py'):
@@ -82,7 +89,8 @@ class PlopBot(commands.Bot):
 async def main(args):
     """
     Main entry point for the bot.
-    :param args:
+    :arg args: arguments from argparse
+    :return: None
     """
     settings.init(args)
 
@@ -100,8 +108,8 @@ if __name__ == '__main__':
     parser.add_argument('--db_password', help='Database password by default taken from json file', default=None)
     parser.add_argument('--db_name', help='Database name by default taken from json file', default=None)
 
-    args = parser.parse_args()
+    arguments = parser.parse_args()
 
     # Initialize settings to connect to database, open json and setup logging
 
-    asyncio.run(main(args))
+    asyncio.run(main(arguments))
