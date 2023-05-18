@@ -179,29 +179,26 @@ class Audio(commands.Cog):
                                                             "on the server")
 
             else:
-                try:
-                    # divide message as though it was a webhook command
-                    data = message.content.split(':')
-                    # check if it has a valid source
-                    if data[0] == "www.sodersjerna.com":
-                        member = await discord.utils.get(message.guild.members, name=data[1])
-                        if member is not None and member.voice is not None:
-                            for client in self.client.voice_clients:
-                                if client.channel.id == member.voice.channel.id:
-                                    if data[2] == "stop":
-                                        if client.is_playing():
-                                            client.stop()
-                                    elif data[2] == "pause":
-                                        if client.is_playing():
-                                            client.pause()
-                                    elif data[2] == "resume":
-                                        if client.is_paused():
-                                            client.resume()
-                                    elif data[2] == "play":
-                                        await self.play_clip(client.channel, client, data[3])
-                        await message.delete()
-                except Exception as e:
-                    settings.logger.warning(f"Error in on_message: {e}")
+                # divide message as though it was a webhook command
+                data = message.content.split(':')
+                # check if it has a valid source
+                if data[0] == "www.sodersjerna.com":
+                    member = await discord.utils.get(message.guild.members, name=data[1])
+                    if member is not None and member.voice is not None:
+                        for client in self.client.voice_clients:
+                            if client.channel.id == member.voice.channel.id:
+                                if data[2] == "stop":
+                                    if client.is_playing():
+                                        client.stop()
+                                elif data[2] == "pause":
+                                    if client.is_playing():
+                                        client.pause()
+                                elif data[2] == "resume":
+                                    if client.is_paused():
+                                        client.resume()
+                                elif data[2] == "play":
+                                    await self.play_clip(message.channel, client, data[3])
+                    await message.delete()
 
     async def play_clip(self, text_channel, voice_channel, filename):
         """
@@ -222,8 +219,6 @@ class Audio(commands.Cog):
                     source = discord.PCMVolumeTransformer(
                         discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"))
                 else:
-                    # TODO: remove this test line
-                    settings.logger.info(f"That clip does not exist, test line")
                     await text_channel.send("That clip does not exist.")
                     return
             voice_channel.play(source)
@@ -325,12 +320,15 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"leave from {ctx.author}")
 
-        channel = ctx.message.author.voice.channel
+        channel = ctx.message.author.voice.channel if ctx.message.author.voice is not None else None
         voice = get(self.client.voice_clients, guild=ctx.guild)
 
-        if voice and voice.is_connected():
+        if channel and voice and voice.is_connected():
             await voice.disconnect()
             settings.logger.info(f"The bot has left {channel}")
+        elif not channel:
+            settings.logger.info(f"Member was not in a voice channel.")
+            await ctx.send("You are not in a voice channel")
         else:
             settings.logger.info(f"Bot was told to leave voice channel, but was not in one!")
             await ctx.send("Don't think I am in a voice channel")
@@ -441,7 +439,7 @@ class Audio(commands.Cog):
                       aliases=[],
                       brief="",
                       description="Uses a markov chain to generate a sentence and say it using TTS")
-    async def markov(self, ctx, model_name, output_file='soundboard/markov.mp3'):
+    async def markov(self, ctx, model_name, output_file='markov'):
         """
         uses a markov chain to generate a sentence and say it using TTS.
         :arg ctx: context of the message
@@ -455,7 +453,7 @@ class Audio(commands.Cog):
             while sent is None:
                 sent = self.models[model_name].make_sentence(tries=1000)
             tts = gTTS(sent)
-            tts.save(output_file)
+            tts.save(os.path.join("soundboard", output_file+'.mp3'))
             await self.play_clip(ctx, ctx.voice_client, output_file)
         else:
             settings.logger.warning("markov model does not exist")
@@ -465,7 +463,7 @@ class Audio(commands.Cog):
     @commands.command(aliases=['SAY'],
                       brief="",
                       description="")
-    async def say(self, ctx, text, *, tts_file='soundboard/say.mp3'):
+    async def say(self, ctx, text, *, tts_file='say'):
         """
         Say the given string in the audio channel using TTS.
         :arg ctx: context of the message
@@ -475,7 +473,7 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"say from {ctx.author} text:{text}")
         text = text.strip().lower()
-        gTTS(text).save(tts_file)
+        gTTS(text).save(os.path.join("soundboard", tts_file+'.mp3'))
         await self.play_clip(ctx, ctx.voice_client, tts_file)
         await ctx.message.delete()
 
@@ -498,7 +496,7 @@ class Audio(commands.Cog):
         elif ctx.voice_client.is_playing():
             ctx.voice_client.stop()
 
-    @tasks.loop(seconds=0, minutes=0, hours=24)
+    @tasks.loop(hours=24.0)
     async def maintenance(self):
         """
         task to run maintenance, including removing unneeded YouTube clips and
