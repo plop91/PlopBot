@@ -4,11 +4,7 @@ FROM python:3.8
 RUN mkdir -p /usr/src/app/PlopBot
 WORKDIR /usr/src/app/PlopBot
 # Copy code
-COPY * ./
-COPY info/* ./info/
-COPY cogs/* ./cogs/
-COPY soundboard/* ./soundboard/
-COPY markov/* ./markov/
+COPY . ./
 # Create a volume so soundboard and info files can be saved on server, must mount with -v
 #VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/
 # Install dependencies.

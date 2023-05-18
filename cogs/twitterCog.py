@@ -7,9 +7,17 @@ import discord
 import os
 
 
-class twitter(commands.Cog):
+class Twitter(commands.Cog):
+    """
+    Twitter cog for the bot
+    """
 
     def __init__(self, client):
+        """
+        Constructor for the twitter cog
+        :param client: Client object
+        :return: None
+        """
         self.client = client
 
         self.auth = OAuthHandler(settings.info_json["twitter"]["apikey"], settings.info_json["twitter"]["apisecret"])
@@ -19,12 +27,19 @@ class twitter(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        """Logs that the cog was loaded properly"""
+        """
+        Logs that the cog was loaded properly
+        :return: None
+        """
         settings.logger.info(f"twit cog ready!")
 
     @commands.command(brief="Retrieves the most recent post from factbot.")
     async def factbot(self, ctx):
-        """gets the most recently tweeted image from the twitter account @factbot1"""
+        """
+        gets the most recently tweeted image from the twitter account @factbot1
+        :param ctx: Context of the command
+        :return: None
+        """
         filename = "factbot.jpg"
         settings.logger.info(f"factbot : {ctx.author}")
         await self.get_last_tweet_image("@factbot1", save_as=filename)
@@ -40,7 +55,12 @@ class twitter(commands.Cog):
             await ctx.message.delete()
 
     async def get_last_tweet_image(self, username, save_as="image.jpg"):
-        """get the most recently tweeted image from give username"""
+        """
+        get the most recently tweeted image from give username
+        :param username: username to get the image from
+        :param save_as: filename to save the image as
+        :return: None
+        """
         tweets = self.auth_api.user_timeline(screen_name=username, count=1, include_rts=False,
                                              exclude_replies=True)
         tmp = []
@@ -62,4 +82,9 @@ class twitter(commands.Cog):
 
 
 async def setup(client):
-    await client.add_cog(twitter(client))
+    """
+    Setup function for the twitter cog
+    :param client: Client object
+    :return: None:
+    """
+    await client.add_cog(Twitter(client))
