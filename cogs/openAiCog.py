@@ -112,8 +112,12 @@ class OpenAI(commands.Cog):
         """
         prompt = ' '.join(args)
         settings.logger.info(f"generating text")
+        if settings.info_json["openai"]["text_gen_engine"] is None:
+            engine = "text-davinci-003"
+        else:
+            engine = settings.info_json["openai"]["text_gen_engine"]
         response = openai.Completion.create(
-            engine="text-davinci-003",
+            engine=engine,
             prompt=prompt,
             temperature=0,
             max_tokens=150,

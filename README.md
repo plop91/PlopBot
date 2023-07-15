@@ -21,6 +21,10 @@ Clone the repository and make a file named "info.json" containing the following 
     "accesstoken": "TWITTER_ACCESS_TOKEN",
     "accesstokensecret": "TWITTER_TOKEN_SECRET"
   },
+  "openai": {
+    "apikey": "OPENAI_API_KEY",
+    "text_gen_engine": "text-davinci-003"
+  },
   "admins": [
     "ADMIN1",
     "ADMIN2"
