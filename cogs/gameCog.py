@@ -62,14 +62,16 @@ class Game(commands.Cog):
         await ctx.message.delete()
 
     @commands.command(pass_context=True, aliases=['TEAMS'],
-                      brief="Divides the current channel into two random teams.",
-                      description="Divides the current channel into two random teams.")
-    async def teams(self, ctx):
+                      brief="Divides the current channel into random teams. Defaults to 2.",
+                      description="Divides the current channel into random teams. Defaults to 2.")
+    async def teams(self, ctx, teams="2"):
         """
-        Divides the current channel into two random teams.
+        Divides the current channel into random teams.
         :arg ctx: Context of the command
         :return: None
         """
+        
+        iteams = int(teams)
 
         # get current voice channel of author
         voice = ctx.author.voice.channel
@@ -77,20 +79,40 @@ class Game(commands.Cog):
         if voice is not None:
             # filter bots from list of members in channel
             people = list(filter(lambda x: (not x.bot), voice.members))
-            settings.logger.info(f"Teams with members: ".join(m.name for m in people))
+            settings.logger.info(f"{iteams} teams with members: ".join(m.name for m in people))
             
-            team2 = random.sample(people, int(len(people)/2))
-            for x in team2:
-                people.remove(x)
-            team1 = people
+            if iteams < 2: iteams = 2
             
-            await ctx.send("Team 1: "+", ".join(m.name for m in team1))
-            await ctx.send("Team 2: "+", ".join(m.name for m in team2))
+            if len(people) < iteams:
+                settings.logger.info(f"Not enough players for {iteams} teams.")
+                await ctx.send(f"Not enough players for {iteams} teams.")
+            else:
+                for x in range(1, iteams+1):
+                    players = random.sample(people, int(len(people)/iteams))
+                    for p in players:
+                        people.remove(p)
+                    await ctx.send(f"Team {x}: "+", ".join(m.name for m in players))
+                    iteams -= 1
         else:
             settings.logger.info(f"Could not find voice channel of member.")
             await ctx.send("Don't think you're in a voice channel")
 
-        await ctx.message.delete()
+    @commands.command(pass_context=True, aliases=['dice'],
+                      brief="Rolls a random die of specified size. Give a second number for multiple rolls.",
+                      description="Rolls a random die of specified size. Give a second number for multiple rolls.")
+    async def roll(self, ctx, sides, times="1"):
+        """
+        Rolls an equally distributed die of specified size
+        :arg ctx: Context of the command
+        :arg sides: number of sides on die
+        :arg times: number of times to roll
+        :return: None
+        """
+        isides = int(sides)
+        itimes = int(times)
+        settings.logger.info(f"roll from {ctx.author}: {isides} sides")
+        if isides > 1 and itimes > 0:
+            await ctx.message.channel.send(f"""{ctx.author} rolled {", ".join([str(x) for x in random.choices(range(1, isides+1), k=itimes)])}""")
 
 
 async def setup(client):
