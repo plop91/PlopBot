@@ -210,8 +210,11 @@ class Audio(commands.Cog):
         :arg filename: name of the file to play
         :return: None
         """
-        og = filename
         try:
+            # TODO: Fix this, this is me being very lazy
+            og = filename
+            r = True if filename == "random" else False
+
             filename = filename.strip()
             if filename == "random":
                 filename = random.choice(list(self.sounds.values()))
@@ -225,15 +228,25 @@ class Audio(commands.Cog):
                     await text_channel.send("That clip does not exist.")
                     return
             voice_channel.play(source)
+
             if self.ghost_message is not None:
                 await self.ghost_message.delete()
+                self.ghost_message = None
 
-            # TODO: fix this, this is me being very lazy
+            # TODO: fix this, this is me being lazy
             fn = og.replace("soundboard/", "").replace(".mp3", "")
 
-            embed_var = discord.Embed(title="Play Command",
-                                      description=f"{text_channel.author} played: {fn}",
-                                      color=0xffff00)
+            if r:
+                # TODO: this is a garbage hack too
+                f = filename.replace("soundboard/", "").replace(".mp3", "")
+
+                embed_var = discord.Embed(title="Play Command",
+                                          description=f"{text_channel.author} played a random clip: {f}",
+                                          color=0xffff00)
+            else:
+                embed_var = discord.Embed(title="Play Command",
+                                          description=f"{text_channel.author} played: {fn}",
+                                          color=0xffff00)
 
             self.ghost_message = await text_channel.channel.send(embed=embed_var)
 
