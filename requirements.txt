@@ -8,6 +8,6 @@ yt-dlp >= 2023.3.4                  # video downloader, required by audioCog.py
 pynacl >= 1.4.0                     # additional networking, required by audioCog.py
 markovify >= 0.9.0                  # markov chain library, required by audioCog.py
 gtts >= 2.2.2                       # google text to speech, required by audioCog.py
-openai >= 0.27.6                    # openai api, required by openaiCog.py
+openai == 0.28                   # openai api, required by openaiCog.py
 Pillow >= 9.4.0                     # image processing, required by openaiCog.py
 pydub >= 0.25.1                     # audio processing, required by openaiCog.py
