@@ -44,6 +44,7 @@ class OpenAI(commands.Cog):
         prompt = ' '.join(args)
         settings.logger.info(f"generating image")
         response = openai.Image.create(
+            model="dall-e-3",
             prompt=prompt,
             n=1,
             size="1024x1024"
