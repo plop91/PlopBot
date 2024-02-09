@@ -158,7 +158,7 @@ class OpenAI(commands.Cog):
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
-    @commands.command(pass_context=True, aliases=["openai_ban", "openai_ban_user", "openai_banuser"],
+    @commands.command(pass_context=True, aliases=["openai_ban_user", "openai_banuser"],
                       brief="Ban a user from using the openai cog")
     async def openai_ban(self, ctx, *user):
         """
@@ -173,7 +173,7 @@ class OpenAI(commands.Cog):
         else:
             await ctx.send(f"{user} is not an admin and cannot be banned from using the openai cog")
 
-    @commands.command(pass_context=True, aliases=["openai_unban", "openai_unban_user", "openai_unbanuser"],
+    @commands.command(pass_context=True, aliases=["openai_unban_user", "openai_unbanuser"],
                       brief="Unban a user from using the openai cog")
     async def openai_unban(self, ctx, *user):
         """
