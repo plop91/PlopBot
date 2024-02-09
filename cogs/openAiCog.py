@@ -9,9 +9,24 @@ import wget
 import os
 from PIL import Image
 
-blacklist = [
-    "jonnyplank"
-]
+# import mysql.connector
+# from mysql.connector import errorcode
+#
+# class OpenAIDatabaseManager:
+#     """
+#     This class is for managing the openai database
+#     """
+#
+#     def __init__(self):
+#         """
+#         Constructor for the openai database manager
+#         :param client: Client object
+#         """
+
+
+
+
+blacklist = []
 
 def blackisted(user):
     return str(user).strip().lower() in blacklist
@@ -142,6 +157,32 @@ class OpenAI(commands.Cog):
             await ctx.send(response['choices'][0]['text'])
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
+
+    async def openai_ban(self, ctx, user):
+        """
+        Bans a user from using the openai cog
+        :param ctx: Context
+        :param user: User to ban
+        :return: None
+        """
+        if ctx.author in settings.info_json["admins"]:
+            blacklist.append(str(user).strip().lower())
+            await ctx.send(f"{user} has been banned from using the openai cog")
+        else:
+            await ctx.send(f"{user} is not an admin and cannot be banned from using the openai cog")
+
+    async def openai_unban(self, ctx, user):
+        """
+        Unbans a user from using the openai cog
+        :param ctx: Context
+        :param user: User to unban
+        :return: None
+        """
+        if ctx.author in settings.info_json["admins"]:
+            blacklist.remove(str(user).strip().lower())
+            await ctx.send(f"{user} has been unbanned from using the openai cog")
+        else:
+            await ctx.send(f"{user} is not an admin and cannot be unbanned from using the openai cog")
 
 
 async def setup(client):
