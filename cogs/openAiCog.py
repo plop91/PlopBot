@@ -24,12 +24,12 @@ from PIL import Image
 #         """
 
 
-
-
 blacklist = []
+
 
 def blackisted(user):
     return str(user).strip().lower() in blacklist
+
 
 class OpenAI(commands.Cog):
     """
@@ -62,7 +62,7 @@ class OpenAI(commands.Cog):
         :arg args: Arguments
         :return: None
         """
-        
+
         if not blackisted(ctx.author):
             prompt = ' '.join(args)
             settings.logger.info(f"generating image")
@@ -88,7 +88,7 @@ class OpenAI(commands.Cog):
         :arg args: Arguments
         :return: None
         """
-        
+
         if not blackisted(ctx.author):
             if ctx.message.attachments[0] is None:
                 await ctx.send("No image attached")
@@ -140,7 +140,7 @@ class OpenAI(commands.Cog):
         :arg args: Arguments
         :return: None
         """
-        
+
         if not blackisted(ctx.author):
             prompt = ' '.join(args)
             settings.logger.info(f"generating text")
@@ -158,7 +158,9 @@ class OpenAI(commands.Cog):
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
-    async def openai_ban(self, ctx, user):
+    @commands.command(pass_context=True, aliases=["openai_ban", "openai_ban_user", "openai_banuser"],
+                      brief="Ban a user from using the openai cog")
+    async def openai_ban(self, ctx, *user):
         """
         Bans a user from using the openai cog
         :param ctx: Context
@@ -171,7 +173,9 @@ class OpenAI(commands.Cog):
         else:
             await ctx.send(f"{user} is not an admin and cannot be banned from using the openai cog")
 
-    async def openai_unban(self, ctx, user):
+    @commands.command(pass_context=True, aliases=["openai_unban", "openai_unban_user", "openai_unbanuser"],
+                      brief="Unban a user from using the openai cog")
+    async def openai_unban(self, ctx, *user):
         """
         Unbans a user from using the openai cog
         :param ctx: Context
