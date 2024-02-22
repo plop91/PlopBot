@@ -2,7 +2,6 @@ import logging
 from discord.ext import commands, tasks
 from discord.errors import ClientException
 from discord.utils import get
-# import markovify
 from gtts import gTTS
 import asyncio
 import os
@@ -90,13 +89,8 @@ class Audio(commands.Cog):
             if file.endswith(".mp3"):
                 temp = file.strip().replace(".mp3", "").lower()
                 self.sounds[temp] = "soundboard/" + file
-        # if os.path.isdir("markov"):
-        #     for markov in os.listdir("markov"):
-        #         if ".json" in markov:
-        #             with open("markov/{}".format(markov)) as f:
-        #                 self.models[markov.replace('.json', '')] = markovify.Text.from_json(json.load(f))
 
-        self.ghost_message = None
+        self.ghost_message = {}
 
     @staticmethod
     def clean_youtube():
@@ -229,9 +223,8 @@ class Audio(commands.Cog):
                     return
             voice_channel.play(source)
 
-            if self.ghost_message is not None:
-                await self.ghost_message.delete()
-                self.ghost_message = None
+            if text_channel.guild.id in self.ghost_message:
+                await self.ghost_message[text_channel.guild.id].delete()
 
             # TODO: fix this, this is me being lazy
             fn = og.replace("soundboard/", "").replace(".mp3", "")
@@ -248,7 +241,7 @@ class Audio(commands.Cog):
                                           description=f"{text_channel.author} played: {fn}",
                                           color=0xffff00)
 
-            self.ghost_message = await text_channel.channel.send(embed=embed_var)
+            self.ghost_message[text_channel.guild.id] = await text_channel.channel.send(embed=embed_var)
 
         except AttributeError:
             settings.logger.info(f"Attribute Error: {traceback.format_exc()}")
@@ -462,30 +455,7 @@ class Audio(commands.Cog):
         if os.path.isfile(os.path.join("soundboard", sound)):
             await ctx.channel.send(sound, file=discord.File(sound + ".mp3", os.path.join("soundboard", sound)))
 
-    # @commands.command(pass_context=True,
-    #                   aliases=[],
-    #                   brief="",
-    #                   description="Uses a markov chain to generate a sentence and say it using TTS")
-    # async def markov(self, ctx, model_name, output_file='markov'):
-    #     """
-    #     uses a markov chain to generate a sentence and say it using TTS.
-    #     :arg ctx: context of the message
-    #     :arg model_name: name of the model to use
-    #     :arg output_file: file to save the TTS to
-    #     :return: None
-    #     """
-    #     settings.logger.info(f"reddit from {ctx.author}")
-    #     if model_name in self.models:
-    #         sent = None
-    #         while sent is None:
-    #             sent = self.models[model_name].make_sentence(tries=1000)
-    #         tts = gTTS(sent)
-    #         tts.save(os.path.join("soundboard", output_file+'.mp3'))
-    #         await self.play_clip(ctx, ctx.voice_client, output_file)
-    #     else:
-    #         settings.logger.warning("markov model does not exist")
-    #         await ctx.send("model does not exist")
-    #     await ctx.message.delete()
+
 
     @commands.command(aliases=['SAY'],
                       brief="",
@@ -506,7 +476,6 @@ class Audio(commands.Cog):
 
     @play.before_invoke
     @youtube.before_invoke
-    # @markov.before_invoke
     @say.before_invoke
     async def ensure_voice(self, ctx):
         """
