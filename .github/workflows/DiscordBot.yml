@@ -5,6 +5,8 @@ name: DiscordBot
 
 on:
   push:
+    branches-ignore:
+      - docs
 
 jobs:
   build:
