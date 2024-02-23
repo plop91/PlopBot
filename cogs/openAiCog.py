@@ -48,11 +48,11 @@ class OpenAIDatabaseManager:
             self.my_cursor = self.db.cursor()
         except mysql.connector.Error as e:
             if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                logger.warning("Soundboard user name or password is Bad")
+                settings.logger.warning("Soundboard user name or password is Bad")
             elif e.errno == errorcode.ER_BAD_DB_ERROR:
-                logger.warning("Database does not exist")
+                settings.logger.warning("Database does not exist")
             else:
-                logger.warning(e)
+                settings.logger.warning(e)
 
 
 blacklist = []
@@ -168,6 +168,26 @@ class OpenAI(commands.Cog):
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
+    async def get_updated_assistants(self, ctx):
+        """
+        Get the updated assistants from openai
+        :return: None
+        """
+        guild = ctx.guild.id
+        my_assistants = self.openai_client.beta.assistants.list(
+            order="desc",
+            limit=100
+        )
+        if guild not in self.active_assistants:
+            self.active_assistants[guild] = {}
+        for assistant in my_assistants.data:
+            name = assistant.name
+            if name in self.active_assistants[guild]:
+                if assistant.id != self.active_assistants[guild][name].id:
+                    self.active_assistants[guild][name] = assistant
+            else:
+                self.active_assistants[guild][name] = assistant
+
     @commands.command(pass_context=True, aliases=["cra", "createassistant"],
                       brief="Create an assistant from a prompt using openai")
     async def create_assistant(self, ctx, name, *args):
@@ -179,7 +199,16 @@ class OpenAI(commands.Cog):
         :return: None
         """
         if not blackisted(ctx.author):
+
+            await self.get_updated_assistants(ctx)
+
             guild = ctx.guild.id
+            # TODO: check if the assistant already exists on openai
+            if guild in self.active_assistants:
+                if name in self.active_assistants[guild]:
+                    await ctx.send(f"Assistant {name} already exists")
+                    return
+
             prompt = ' '.join(args)
             settings.logger.info(f"creating assistant")
             assistant = self.openai_client.beta.assistants.create(
@@ -190,9 +219,6 @@ class OpenAI(commands.Cog):
             )
             # if an assistant already exists for this guild
             if guild in self.active_assistants:
-                if name in self.active_assistants[guild]:
-                    await ctx.send(f"Assistant {name} already exists")
-                    return
                 self.active_assistants[guild][name] = assistant
             else:
                 self.active_assistants[guild] = {name: assistant}
@@ -212,30 +238,29 @@ class OpenAI(commands.Cog):
         :return: None
         """
         if not blackisted(ctx.author):
+
+            await self.get_updated_assistants(ctx)
+
             guild = ctx.guild.id
             prompt = ' '.join(args)
             # check if assistant exists
             if ctx.guild.id not in self.active_assistants:
-                # TODO: database lookup
                 await ctx.send(f"Assistant {name} does not exist")
                 return
 
             if name not in self.active_assistants[guild]:
-                # TODO: database lookup
                 await ctx.send(f"Assistant {name} does not exist")
                 return
+
             assistant = self.active_assistants[guild][name]
             thread = self.openai_client.beta.threads.create()
             if guild in self.active_threads:
-                if ctx.author.id in self.active_threads[guild]:
-                    if name not in self.active_threads[guild][ctx.author.id]:
-                        self.active_threads[guild][ctx.author.id][name] = thread
-                else:
-                    self.active_threads[guild][ctx.author.id] = {name: thread}
+                if name not in self.active_threads[guild]:
+                    self.active_threads[guild][name] = thread
             else:
-                self.active_threads[guild] = {ctx.author.id: {name: thread}}
+                self.active_threads[guild] = {name: thread}
 
-            thread_id = self.active_threads[guild][ctx.author.id][name].id
+            thread_id = self.active_threads[guild][name].id
             self.openai_client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
@@ -315,7 +340,7 @@ class OpenAI(commands.Cog):
     #     else:
     #         settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
-    @commands.command(pass_context=True, aliases=["openai_ban_user", "openai_banuser"],
+    @commands.command(pass_context=True, aliases=["openai_ban_user", "openai_banuser", "obu"],
                       brief="Ban a user from using the openai cog")
     async def openai_ban(self, ctx, *user):
         """
@@ -328,7 +353,7 @@ class OpenAI(commands.Cog):
             blacklist.append(str(user).strip().lower())
             await ctx.send(f"{user} has been banned from using the openai cog")
         else:
-            await ctx.send(f"{user} is not an admin and cannot be banned from using the openai cog")
+            await ctx.send(f"{ctx.author} is not an admin and cannot ban someone from using the openai cog")
 
     @commands.command(pass_context=True, aliases=["openai_unban_user", "openai_unbanuser"],
                       brief="Unban a user from using the openai cog")
