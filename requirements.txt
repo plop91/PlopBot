@@ -1,13 +1,13 @@
-discord.py >= 2.2.2                 # Discord interface
+discord.py >= 2.3.2                 # Discord interface
 argparse >= 1.1                     # Command line argument parcer
-tweepy >= 3.9.0                     # Twitter interface, required by twitterCog.py
+tweepy >= 4.14.0                     # Twitter interface, required by twitterCog.py
 wget >= 3.2                         # Web interface, required by twitterCog.py
 mysql-connector-python >= 8.0.23    # Databse interface, required by settings.py
 ffmpeg-python >= 0.2.0              # Video and audio processing, required by audioCog.py
 yt-dlp >= 2023.3.4                  # video downloader, required by audioCog.py
 pynacl >= 1.4.0                     # additional networking, required by audioCog.py
 markovify >= 0.9.0                  # markov chain library, required by audioCog.py
-gtts >= 2.2.2                       # google text to speech, required by audioCog.py
-openai == 0.28                   # openai api, required by openaiCog.py
-Pillow >= 9.4.0                     # image processing, required by openaiCog.py
+gtts >= 2.5.1                       # google text to speech, required by audioCog.py
+openai >= 1.12.0                   # openai api, required by openaiCog.py
+Pillow >= 10.2.0                     # image processing, required by openaiCog.py
 pydub >= 0.25.1                     # audio processing, required by openaiCog.py
