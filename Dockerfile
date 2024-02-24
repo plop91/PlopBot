@@ -6,6 +6,12 @@ WORKDIR /usr/src/app
 RUN git clone https://github.com/plop91/PlopBot.git
 # Set working dir to the git repo
 WORKDIR /usr/src/app/PlopBot/
+# Set branch to pull from
+ARG branch=devel
+# fetch branchs
+RUN git fetch
+# Checkout branch
+RUN git checkout $branch
 # Create a volume so soundboard and info files can be saved on server, must mount with -v
 VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/ /usr/src/app/PlopBot/markov/
 # Install dependencies.
