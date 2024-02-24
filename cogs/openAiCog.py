@@ -188,6 +188,26 @@ class OpenAI(commands.Cog):
             else:
                 self.active_assistants[guild][name] = assistant
 
+    @commands.command(pass_context=True, aliases=["la", "listassistants"],
+                      brief="Prints the list of existing assistants")
+    async def list_assistants(self, ctx):
+        """
+        Prints the list of existing assistants
+        :arg ctx: Context
+        :return: None
+        """
+        if not blackisted(ctx.author):
+
+            await ctx.typing()
+
+            await self.get_updated_assistants(ctx)
+
+            guild = ctx.guild.id
+            if guild in self.active_assistants:
+                await ctx.send("Current active assistants: " + ", ".join(list(self.active_assistants[guild].keys())))
+        else:
+            settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
+
     @commands.command(pass_context=True, aliases=["cra", "createassistant"],
                       brief="Create an assistant from a prompt using openai")
     async def create_assistant(self, ctx, name, *args):
