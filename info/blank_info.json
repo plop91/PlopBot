@@ -1,0 +1,64 @@
+{
+  "token": "NjgwNDMwODU2ODk2MTE4ODA1.Xk_yng.qVoaP_cutKq9A1y67HboLa4ayJI",
+  "database": {
+    "server_address": "192.168.1.250",
+    "username": "discord",
+    "password": "plop9100",
+    "database": "discord"
+  },
+  "soundboard_database": {
+    "server_address": "192.168.1.250",
+    "username": "Pycharm",
+    "password": "plop9100",
+    "database": "Pycharm"
+  },
+  "twitter": {
+    "apikey": "TWITTER_API_KEY",
+    "apisecret": "TWITTER_API_SECRET",
+    "accesstoken": "TWITTER_ACCESS",
+    "accesstokensecret": "TWITTER_ACCESS_SECRET"
+  },
+  "openai": {
+    "apikey": "OPENAI_API_KEY",
+    "text_gen_engine": "gpt-4"
+  },
+  "servers": {
+    "SERVERNAME": 12345 //SERVER_ID
+  },
+  "valid_users": [
+    "VALID_USER_ID"
+  ],
+  "admins": [
+    "ADMIN_USER_ID"
+  ],
+  "username": {
+    "REAL_NAME": "USERNAME"
+  },
+  "command_channels": [
+    "bot_commands"
+  ],
+  "welcome_channels": [
+    "general"
+  ],
+  "welcome_messages": [
+    "hello"
+  ],
+  "status": [
+    "broother",
+    "other"
+  ],
+  "scribble": [
+    "poop",
+    "meister",
+    "rumham",
+    "geoff,",
+    "vageen",
+    "caribou,",
+    "gator",
+    "schmeckles,",
+    "a"
+  ],
+  "blacklist":[
+
+  ]
+}
