@@ -7,6 +7,7 @@ from discord.ext import commands
 from openai import OpenAI as OAI
 import wget
 import os
+import textwrap
 from PIL import Image
 
 import mysql.connector
@@ -398,7 +399,23 @@ class OpenAI(commands.Cog):
                 thread_id=thread_id
             )
 
-            await ctx.send(f"{name} says: {messages.data[0].content[0].text.value}")
+            for data in messages.data:
+                for content in data.content:
+                    # break up long messages
+                    if content.type == "text":
+                        lines = textwrap.wrap(content.text.value, 1024)
+                        for line in lines:
+                            await ctx.send(f"{name} says: {line}")
+                    # retrieve image file
+                    else:
+                        image_data = self.openai_client.files.content(content.image_file.file_id)
+                        image_data_bytes = image_data.read()
+
+                        image_filename = "./my-image.png"
+                        with open(image_filename, "wb") as file:
+                            file.write(image_data_bytes)
+                            await ctx.send(file=discord.File(image_filename))
+                            os.remove(image_filename)
 
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
