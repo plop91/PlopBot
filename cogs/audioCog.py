@@ -43,7 +43,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         :param data: The data of the audio.
         :param volume: The volume of the audio.
         """
-        super().__init__(source, volume)
+        super().__init__(source, volume=volume)
 
         self.data = data
 
@@ -51,7 +51,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.url = data.get('url')
 
     @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
+    async def from_url(cls, url, *, loop=None, stream=False, volume=0.5):
         """
         This function is used to get the audio from a YouTube video.
         :param url: The url of the YouTube video.
@@ -67,14 +67,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
             data = data['entries'][0]
 
         filename = data['url'] if stream else ytdl.prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
+        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data, volume=volume)
 
 
 class Audio(commands.Cog):
     """
     Audio cog for the bot.
     """
-    volume = 0.7
 
     def __init__(self, client):
         """
@@ -89,6 +88,7 @@ class Audio(commands.Cog):
             if file.endswith(".mp3"):
                 temp = file.strip().replace(".mp3", "").lower()
                 self.sounds[temp] = "soundboard/" + file
+        self.volume = 0.7
 
         self.ghost_message = {}
 
@@ -213,11 +213,11 @@ class Audio(commands.Cog):
             if filename == "random":
                 filename = random.choice(list(self.sounds.values()))
                 source = discord.PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio(source=f"{filename}"))
+                    discord.FFmpegPCMAudio(source=f"{filename}"), volume=self.volume)
             else:
                 if filename + ".mp3" in os.listdir("soundboard"):
                     source = discord.PCMVolumeTransformer(
-                        discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"))
+                        discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"), volume=self.volume)
                 else:
                     await text_channel.send("That clip does not exist.")
                     return
@@ -308,7 +308,7 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"youtube from {ctx.author} :{url}")
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.client.loop)
+            player = await YTDLSource.from_url(url, loop=self.client.loop, volume=self.volume)
             ctx.voice_client.play(player)
         await ctx.message.delete()
 
@@ -324,7 +324,7 @@ class Audio(commands.Cog):
         :return: None
         """
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True)
+            player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True, volume=self.volume)
             ctx.voice_client.play(player)
         await ctx.message.delete()
 
@@ -436,7 +436,9 @@ class Audio(commands.Cog):
         if volume > 100 or volume < 0:
             return await ctx.send("Volume must be between 0 and 100")
 
-        ctx.voice_client.source.volume = volume / 100
+        self.volume = volume / 100
+        if ctx.voice_client.is_connected() and ctx.voice_client.source:
+            ctx.voice_client.source.volume = self.volume
         settings.logger.info(f"volume changed to {volume} by {ctx.author}")
         await ctx.message.delete()
         await ctx.send(f"Changed volume to {volume}")
