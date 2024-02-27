@@ -4,7 +4,7 @@
   "parameters": {
     "type": "object",
     "properties": {
-      "soundboard": {
+      "sounds": {
         "type": "string",
         "description": "all the soundboard files in the soundboard folder separated by spaces"
       }

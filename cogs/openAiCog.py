@@ -253,6 +253,92 @@ class OpenAI(commands.Cog):
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
+    async def handle_tool_call(self, ctx, run, thread_id):
+        """
+        Handles the tool call for the assistant
+        :param ctx: Context
+        :param run: Run object
+        :param thread_id: Thread id
+        """
+        if run.required_action.submit_tool_outputs:
+            if run.required_action.submit_tool_outputs.tool_calls:
+                outputs = []
+                for tool_call in run.required_action.submit_tool_outputs.tool_calls:
+                    try:
+                        # await ctx.send(f"{tool_call}")
+                        if tool_call.function.name == "get_weather":
+                            await ctx.send(f"get weather tool call args: {tool_call.function.arguments}")
+                            # send 20 degrees celsius
+                            output = {
+                                "tool_call_id": tool_call.id,
+                                "output": "20C"
+                            }
+                            outputs.append(output)
+                        elif tool_call.function.name == "get_chat_history":
+                            chat_history = await ctx.channel.history(limit=50)
+                            count = 0
+                            chat = ""
+                            for message in chat_history:
+                                if count >= 20:
+                                    break
+                                if message.content and message.author != self.client.user:
+                                    chat += message.author.name + ": " + message.content + "\n"
+                                    count += 1
+                            output = {
+                                "tool_call_id": tool_call.id,
+                                "output": chat
+                            }
+                            outputs.append(output)
+
+                        elif tool_call.function.name == "get_users_voice":
+                            await ctx.send(f"tool call {tool_call.function.name} not implemented yet")
+                            pass
+
+                        elif tool_call.function.name == "get_users_text":
+                            members = ctx.channel.members
+                            online_members = []
+                            for member in members:
+                                if member.status == discord.Status.online:
+                                    online_members.append(member.name)
+                            output = {
+                                "tool_call_id": tool_call.id,
+                                "output": " ".join(online_members)
+                            }
+                            outputs.append(output)
+
+                        elif tool_call.function.name == "get_soundboard_names":
+                            audio = self.client.get_cog('Audio')
+                            output = {
+                                "tool_call_id": tool_call.id,
+                                "output": " ".join(audio.sounds)
+                            }
+                            outputs.append(output)
+
+                        elif tool_call.function.name == "play_soundboard":
+                            audio = self.client.get_cog('Audio')
+                            sound = tool_call.function.arguments
+                            if sound in audio.sounds:
+                                audio.play(ctx, sound)
+                            else:
+                                await ctx.send(f"Sound {sound} not found")
+
+                        # get bot usage
+                        # get player stats
+                        else:
+                            await ctx.send(f"tool call {tool_call.function.name} not recognized")
+                    except Exception as e:
+                        await ctx.send(f"Error: {e}")
+
+                run = self.openai_client.beta.threads.runs.submit_tool_outputs(
+                    thread_id=thread_id,
+                    run_id=run.id,
+                    tool_outputs=outputs
+                )
+                if run.status == "completed":
+                    await ctx.send("Tool call completed")
+                else:
+                    await ctx.send(f"Tool call failed with status {run.status}")
+
     @commands.command(pass_context=True, aliases=["ca", "chatassistant"],
                       brief="chat with an assistant using openai")
     async def chat_assistant(self, ctx, name, *args):
@@ -304,13 +390,10 @@ class OpenAI(commands.Cog):
                 )
 
                 if "completed" in run.status:
-                    # await ctx.send("Assistant complete")
                     break
                 elif run.status == "queued":
-                    # await ctx.send("Assistant queued")
                     pass
                 elif run.status == "in_progress":
-                    # await ctx.send("Assistant in_progress")
                     pass
                 elif run.status == "failed":
                     await ctx.send("Assistant failed")
@@ -319,72 +402,7 @@ class OpenAI(commands.Cog):
                     await ctx.send("Assistant expired")
                     return
                 elif run.status == "requires_action":
-                    if run.required_action.submit_tool_outputs:
-                        if run.required_action.submit_tool_outputs.tool_calls:
-                            outputs = []
-                            for tool_call in run.required_action.submit_tool_outputs.tool_calls:
-                                # await ctx.send(f"{tool_call}")
-                                if tool_call.function.name == "get_weather":
-                                    await ctx.send(f"get weather tool call args: {tool_call.function.arguments}")
-                                    # send 20 degrees celsius
-                                    output = {
-                                        "tool_call_id": tool_call.id,
-                                        "output": "20C"
-                                    }
-                                    outputs.append(output)
-                                elif tool_call.function.name == "get_chat_history":
-                                    chat_history = await ctx.channel.history(limit=50)
-                                    count = 0
-                                    chat = ""
-                                    for message in chat_history:
-                                        if count >= 20:
-                                            break
-                                        if message.content and message.author != self.client.user:
-                                            chat += message.author.name + ": " + message.content + "\n"
-                                            count += 1
-                                    output = {
-                                        "tool_call_id": tool_call.id,
-                                        "output": chat
-                                    }
-                                    outputs.append(output)
-
-                                elif tool_call.function.name == "get_users_voice":
-                                    await ctx.send(f"tool call {tool_call.function.name} not implemented yet")
-                                    pass
-
-                                elif tool_call.function.name == "get_users_text":
-                                    members = ctx.channel.members
-                                    online_members = []
-                                    for member in members:
-                                        if member.status == discord.Status.online:
-                                            online_members.append(member.name)
-                                    output = {
-                                        "tool_call_id": tool_call.id,
-                                        "output": " ".join(online_members)
-                                    }
-                                    outputs.append(output)
-
-                                elif tool_call.function.name == "get_soundboard_names":
-                                    sounds = []
-                                    for file in os.listdir("soundboard"):
-                                        if file.endswith(".mp3"):
-                                            sounds.append(file.replace(".mp3", ""))
-                                    output = {
-                                        "tool_call_id": tool_call.id,
-                                        "output": " ".join(sounds)
-                                    }
-                                    outputs.append(output)
-
-                                # get bot usage
-                                # get player stats
-                                else:
-                                    await ctx.send(f"tool call {tool_call.function.name} not recognized")
-
-                            run = self.openai_client.beta.threads.runs.submit_tool_outputs(
-                                thread_id=thread_id,
-                                run_id=run.id,
-                                tool_outputs=outputs
-                            )
+                    await self.handle_tool_call(ctx, run, thread_id)
                 elif run.status == "cancelled":
                     await ctx.send("Assistant cancelled")
                     return
@@ -393,6 +411,7 @@ class OpenAI(commands.Cog):
                     return
                 else:
                     await ctx.send(f"{run.status} not recognized")
+                    return
                 await asyncio.sleep(2)
 
             messages = self.openai_client.beta.threads.messages.list(
@@ -417,33 +436,6 @@ class OpenAI(commands.Cog):
 
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
-
-    # @commands.command(pass_context=True, aliases=["gentext", "gentxt", "gen_txt", "text"],
-    #                   brief="generate text from a prompt using openai")
-    # async def gen_text(self, ctx, *args):
-    #     """
-    #     Generate text from a prompt using openai
-    #     :arg ctx: Context
-    #     :arg args: Arguments
-    #     :return: None
-    #     """
-    #
-    #     if not blackisted(ctx.author):
-    #         prompt = ' '.join(args)
-    #         settings.logger.info(f"generating text")
-    #         if settings.info_json["openai"]["text_gen_engine"] is None:
-    #             engine = "text-davinci-003"
-    #         else:
-    #             engine = settings.info_json["openai"]["text_gen_engine"]
-    #         response = openai.Completion.create(
-    #             engine=engine,
-    #             prompt=prompt,
-    #             temperature=0,
-    #             max_tokens=150,
-    #         )
-    #         await ctx.send(response['choices'][0]['text'])
-    #     else:
-    #         settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
     @commands.command(pass_context=True, aliases=["openai_ban_user", "openai_banuser", "obu"],
                       brief="Ban a user from using the openai cog")

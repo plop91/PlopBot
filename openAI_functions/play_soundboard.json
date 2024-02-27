@@ -1,0 +1,13 @@
+{
+  "name": "play_soundboard",
+  "description": "plays a sound from the soundboard, the name of the sound must be in the soundboard",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "sound": {
+        "type": "string",
+        "description": "the name of the sound to play from the soundboard, must be in the soundboard"
+      }
+    }
+  }
+}
