@@ -1,6 +1,8 @@
 """
 This cog is for generating images and text using openai
 """
+import time
+
 import discord
 import settings
 from discord.ext import commands
@@ -9,6 +11,7 @@ import wget
 import os
 import textwrap
 from PIL import Image
+import json
 
 import mysql.connector
 from mysql.connector import errorcode
@@ -235,12 +238,39 @@ class OpenAI(commands.Cog):
             # functions = os.listdir("../openAI_functions/")
             # ctx.send(f"functions: {functions}")
 
-            prompt = ' '.join(args)
+            # TODO: add all the functions to the assistant
+            tools = [{"type": "code_interpreter"}, {"type": "retrieval"}]
+
+            functions = os.listdir("openAI_functions/")
+            for function in functions:
+                if function.endswith(".json"):
+                    try:
+                        with open(f"openAI_functions/{function}", "r") as file:
+                            data = file.read()
+                            if data:
+                                tools.append(json.loads(data))
+                    except FileNotFoundError as e:
+                        settings.logger.warning(f"File not found: {e}")
+                    except Exception as e:
+                        settings.logger.warning(f"Error loading function: {e}")
+
+            # generate tool notifications
+            notification = ""
+            for tool in tools:
+                if tool["type"] == "code_interpreter":
+                    notification += "Code interpreter tool added\n"
+                elif tool["type"] == "retrieval":
+                    notification += "Retrieval tool added\n"
+                elif tool["type"] == "function":
+                    notification += f"Function tool added: {tool['function']['name']}\n"
+
+            prompt = ' '.join(args)  # the prompt used to initialize the assistant
+
             settings.logger.info(f"creating assistant")
             assistant = self.openai_client.beta.assistants.create(
                 name=name,
                 instructions=prompt,
-                tools=[],
+                tools=tools,
                 model="gpt-4-turbo-preview"
             )
             # if an assistant already exists for this guild
@@ -249,7 +279,7 @@ class OpenAI(commands.Cog):
             else:
                 self.active_assistants[guild] = {name: assistant}
 
-            await ctx.send(f"Assistant {name} created")
+            await ctx.send(f"Assistant {name} created with tools:\n{notification}")
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
@@ -267,7 +297,8 @@ class OpenAI(commands.Cog):
                     try:
                         # await ctx.send(f"{tool_call}")
                         if tool_call.function.name == "get_weather":
-                            await ctx.send(f"get weather tool call args: {tool_call.function.arguments}")
+                            # await ctx.send(f"get weather tool call args: {tool_call.function.arguments}")
+                            # TODO: actually get the weather
                             # send 20 degrees celsius
                             output = {
                                 "tool_call_id": tool_call.id,
@@ -275,7 +306,9 @@ class OpenAI(commands.Cog):
                             }
                             outputs.append(output)
                         elif tool_call.function.name == "get_chat_history":
-                            chat_history = await ctx.channel.history(limit=50)
+                            chat_history = []
+                            async for message in ctx.channel.history(limit=200):
+                                chat_history.append(message)
                             count = 0
                             chat = ""
                             for message in chat_history:
@@ -292,7 +325,11 @@ class OpenAI(commands.Cog):
 
                         elif tool_call.function.name == "get_users_voice":
                             await ctx.send(f"tool call {tool_call.function.name} not implemented yet")
-                            pass
+                            output = {
+                                "tool_call_id": tool_call.id,
+                                "output": " ".join([])
+                            }
+                            outputs.append(output)
 
                         elif tool_call.function.name == "get_users_text":
                             members = ctx.channel.members
@@ -336,7 +373,6 @@ class OpenAI(commands.Cog):
                     )
                 except Exception as e:
                     await ctx.send(f"Error: {e}")
-
 
     @commands.command(pass_context=True, aliases=["ca", "chatassistant"],
                       brief="chat with an assistant using openai")
@@ -382,11 +418,25 @@ class OpenAI(commands.Cog):
                 thread_id=thread_id,
                 assistant_id=assistant.id
             )
+            start_time = run.created_at
             while True:
                 run = self.openai_client.beta.threads.runs.retrieve(
                     thread_id=thread_id,
                     run_id=run.id
                 )
+
+                current_time = time.time()
+                if current_time - start_time > 60:
+                    await ctx.send("Assistant time out - cancelling")
+                    run = self.openai_client.beta.threads.runs.cancel(
+                        thread_id=thread_id,
+                        run_id=run.id
+                    )
+                    if run.status == "cancelling" or run.status == "cancelled":
+                        await ctx.send("Assistant run cancelled")
+                    else:
+                        await ctx.send("Error cancelling assistant run")
+                    return
 
                 if "completed" in run.status:
                     break
@@ -412,6 +462,7 @@ class OpenAI(commands.Cog):
                     await ctx.send(f"{run.status} not recognized")
                     return
                 await asyncio.sleep(2)
+
 
             messages = self.openai_client.beta.threads.messages.list(
                 thread_id=thread_id

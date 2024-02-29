@@ -1,12 +1,15 @@
 {
-  "name": "get_soundboard_names",
-  "description": "get the names of all the soundboard files in the soundboard folder",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "sounds": {
-        "type": "string",
-        "description": "all the soundboard files in the soundboard folder separated by spaces"
+  "type": "function",
+  "function": {
+    "name": "get_soundboard_names",
+    "description": "get the names of all the soundboard files in the soundboard folder",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sounds": {
+          "type": "string",
+          "description": "all the soundboard files in the soundboard folder separated by spaces"
+        }
       }
     }
   }

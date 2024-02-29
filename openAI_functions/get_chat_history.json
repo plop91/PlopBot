@@ -1,12 +1,15 @@
 {
-  "name": "get_chat_history",
-  "description": "get the chat history for the server",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "history": {
-        "type": "string",
-        "description": "the last 20 messages with text in them and the authors name from the chat history"
+  "type": "function",
+  "function": {
+    "name": "get_chat_history",
+    "description": "get the chat history for the server",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "history": {
+          "type": "string",
+          "description": "the last 20 messages with text in them and the authors name from the chat history"
+        }
       }
     }
   }

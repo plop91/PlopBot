@@ -1,12 +1,15 @@
 {
-  "name": "get_users_text",
-  "description": "get the players that are online and in the text channel",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "players": {
-        "type": "string",
-        "description": "the players that are online in the text channel"
+  "type": "function",
+  "function": {
+    "name": "get_users_text",
+    "description": "get the players that are online and in the text channel",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "players": {
+          "type": "string",
+          "description": "the players that are online in the text channel"
+        }
       }
     }
   }

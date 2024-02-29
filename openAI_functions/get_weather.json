@@ -1,24 +1,28 @@
 {
-  "name": "get_weather",
-  "description": "Get the weather for a given location",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "location": {
-        "type": "string",
-        "description": "The location to get the weather for"
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "description": "Get the weather for a given location",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The location to get the weather for"
+        },
+        "units": {
+          "type": "string",
+          "enum": [
+            "imperial",
+            "metric",
+            "standard"
+          ]
+        }
       },
-      "units": {
-        "type": "string",
-        "enum": [
-          "imperial",
-          "metric",
-          "standard"
-        ]
-      }
-    },
-    "required": [
-      "location"
-    ]
+      "required": [
+        "location"
+      ]
+    }
   }
 }
+
