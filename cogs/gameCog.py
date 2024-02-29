@@ -1,3 +1,6 @@
+"""
+Game cog for the bot
+"""
 import discord
 import settings
 from settings import add_to_json
@@ -68,30 +71,32 @@ class Game(commands.Cog):
         """
         Divides the current channel into random teams.
         :arg ctx: Context of the command
+        :arg teams: number of teams to divide into
         :return: None
         """
-        
+
         iteams = int(teams)
 
         # get current voice channel of author
         voice = ctx.author.voice.channel
-        
+
         if voice is not None:
             # filter bots from list of members in channel
             people = list(filter(lambda x: (not x.bot), voice.members))
             settings.logger.info(f"{iteams} teams with members: ".join(m.name for m in people))
-            
-            if iteams < 2: iteams = 2
-            
+
+            if iteams < 2:
+                iteams = 2
+
             if len(people) < iteams:
                 settings.logger.info(f"Not enough players for {iteams} teams.")
                 await ctx.send(f"Not enough players for {iteams} teams.")
             else:
-                for x in range(1, iteams+1):
-                    players = random.sample(people, int(len(people)/iteams))
+                for x in range(1, iteams + 1):
+                    players = random.sample(people, int(len(people) / iteams))
                     for p in players:
                         people.remove(p)
-                    await ctx.send(f"Team {x}: "+", ".join(m.name for m in players))
+                    await ctx.send(f"Team {x}: " + ", ".join(m.name for m in players))
                     iteams -= 1
         else:
             settings.logger.info(f"Could not find voice channel of member.")
@@ -112,7 +117,9 @@ class Game(commands.Cog):
         itimes = int(times)
         settings.logger.info(f"roll from {ctx.author}: {isides} sides")
         if isides > 1 and itimes > 0:
-            await ctx.message.channel.send(f"""{ctx.author} rolled {", ".join([str(x) for x in random.choices(range(1, isides+1), k=itimes)])}""")
+            await ctx.message.channel.send(
+                f"""{ctx.author} rolled {", ".join([str(x) for x in random.choices(range(1, isides + 1), 
+                                                                                   k=itimes)])}""")
 
 
 async def setup(client):

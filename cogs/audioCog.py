@@ -1,11 +1,13 @@
-import logging
+"""
+This cog is used to play audio from YouTube and the soundboard. It also has the ability to download mp3's from
+YouTube and add them to the soundboard. It also has the ability to play TTS audio.
+"""
 from discord.ext import commands, tasks
 from discord.errors import ClientException
 from discord.utils import get
 from gtts import gTTS
 import asyncio
 import os
-import json
 import random
 from yt_dlp import YoutubeDL
 import discord
@@ -57,6 +59,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         :param url: The url of the YouTube video.
         :param loop: The loop to use.
         :param stream: Whether to stream the audio.
+        :param volume: The volume of the audio.
         :return: The YTDLSource object.
         """
         loop = loop or asyncio.get_event_loop()
@@ -217,7 +220,8 @@ class Audio(commands.Cog):
             else:
                 if filename + ".mp3" in os.listdir("soundboard"):
                     source = discord.PCMVolumeTransformer(
-                        discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"), volume=self.volume)
+                        discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"),
+                        volume=self.volume)
                 else:
                     await text_channel.send("That clip does not exist.")
                     return
@@ -457,8 +461,6 @@ class Audio(commands.Cog):
         if os.path.isfile(os.path.join("soundboard", sound)):
             await ctx.channel.send(sound, file=discord.File(sound + ".mp3", os.path.join("soundboard", sound)))
 
-
-
     @commands.command(aliases=['SAY'],
                       brief="",
                       description="")
@@ -506,4 +508,9 @@ class Audio(commands.Cog):
 
 
 async def setup(client):
+    """
+    Sets up the cog
+    :param client: Client object
+    :return: None
+    """
     await client.add_cog(Audio(client))

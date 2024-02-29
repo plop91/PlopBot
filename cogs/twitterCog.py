@@ -1,3 +1,6 @@
+"""
+This cog is for the bot to interact with twitter.
+"""
 from discord.ext import commands
 from tweepy import OAuthHandler
 from tweepy import API
@@ -36,7 +39,7 @@ class Twitter(commands.Cog):
     @commands.command(brief="Retrieves the most recent post from factbot.")
     async def factbot(self, ctx):
         """
-        gets the most recently tweeted image from the twitter account @factbot1
+        gets the most recently tweeted image from the Twitter account @factbot1
         :param ctx: Context of the command
         :return: None
         """

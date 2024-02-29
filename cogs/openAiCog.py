@@ -6,18 +6,18 @@ import time
 import discord
 import settings
 from discord.ext import commands
-from openai import OpenAI as OAI
+from openai import OpenAI as Oai
 import wget
 import os
 import textwrap
 from PIL import Image
 import json
+import asyncio
 
 import mysql.connector
 from mysql.connector import errorcode
 
 global logger
-import asyncio
 
 
 class OpenAIDatabaseManager:
@@ -28,7 +28,10 @@ class OpenAIDatabaseManager:
     def __init__(self, db_host, db_username, db_password, database_name):
         """
         Constructor for the openai database manager
-        :param client: Client object
+        :param db_host: Database host
+        :param db_username: Database username
+        :param db_password: Database password
+        :param database_name: Database name
         """
         self.db = None
         self.my_cursor = None
@@ -62,7 +65,12 @@ class OpenAIDatabaseManager:
 blacklist = []
 
 
-def blackisted(user):
+def blacklisted(user):
+    """
+    Checks if a user is blacklisted
+    :param user: user to check
+    :return: True if blacklisted, False otherwise
+    """
     return str(user).strip().lower() in blacklist
 
 
@@ -79,7 +87,7 @@ class OpenAI(commands.Cog):
         self.client = client
         self.api_key = settings.info_json["openai"]["apikey"]
         # openai.api_key = self.api_key
-        self.openai_client = OAI(api_key=self.api_key)
+        self.openai_client = Oai(api_key=self.api_key)
 
         self.active_assistants = {}
         self.active_threads = {}
@@ -102,7 +110,7 @@ class OpenAI(commands.Cog):
         :return: None
         """
 
-        if not blackisted(ctx.author):
+        if not blacklisted(ctx.author):
             prompt = ' '.join(args)
             settings.logger.info(f"generating image")
             response = self.openai_client.images.generate(
@@ -122,21 +130,17 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["editimg", "editimage", "edit_image"],
                       brief="edit an image from a prompt using openai")
-    async def edit_img(self, ctx, *args):
+    async def edit_img(self, ctx):
         """
         Edit an image from a prompt using openai
         :arg ctx: Context
-        :arg args: Arguments
         :return: None
         """
 
-        if not blackisted(ctx.author):
+        if not blacklisted(ctx.author):
             if ctx.message.attachments[0] is None:
                 await ctx.send("No image attached")
                 return
-            # elif not ctx.message.attachments[0].filename.endswith('.png'):
-            #     await ctx.send("Image must be png format")
-            #     return
             await ctx.message.attachments[0].save("temp.png")
 
             png = Image.open("temp.png")
@@ -144,27 +148,13 @@ class OpenAI(commands.Cog):
             png = png.convert("RGBA")
             png = png.resize((1024, 1024))
             png.save("temp.png", 'png', quality=100)
-
-            # mask = Image.new("RGBA", png.size, (255, 255, 255, 0))
-            # mask.putalpha(0)
-            # mask.save("mask.png", 'png', quality=100)
-
-            prompt = ' '.join(args)
             settings.logger.info(f"editing image")
-            # response = openai.Image.create_edit(
-            #     image=open("temp.png", "rb"),
-            #     mask=open("mask.png", "rb"),
-            #     prompt=prompt,
-            #     n=1,
-            #     size="1024x1024"
-            # )
             response = self.openai_client.images.create_variation(
                 image=open("temp.png", "rb"),
                 n=1,
                 size="1024x1024"
             )
             os.remove("temp.png")
-            # os.remove("mask.png")
             image_url = response['data'][0]['url']
             image_filename = wget.download(image_url)
             await ctx.send(file=discord.File(image_filename))
@@ -200,7 +190,7 @@ class OpenAI(commands.Cog):
         :arg ctx: Context
         :return: None
         """
-        if not blackisted(ctx.author):
+        if not blacklisted(ctx.author):
 
             await ctx.typing()
 
@@ -222,7 +212,7 @@ class OpenAI(commands.Cog):
         :arg args: Arguments
         :return: None
         """
-        if not blackisted(ctx.author):
+        if not blacklisted(ctx.author):
 
             await ctx.typing()
 
@@ -263,6 +253,8 @@ class OpenAI(commands.Cog):
                     notification += "Retrieval tool added\n"
                 elif tool["type"] == "function":
                     notification += f"Function tool added: {tool['function']['name']}\n"
+                else:
+                    notification += "Unknown tool!!!!!\n"
 
             prompt = ' '.join(args)  # the prompt used to initialize the assistant
 
@@ -384,7 +376,7 @@ class OpenAI(commands.Cog):
         :arg args: Arguments
         :return: None
         """
-        if not blackisted(ctx.author):
+        if not blacklisted(ctx.author):
             await ctx.typing()
 
             await self.get_updated_assistants(ctx)
@@ -463,7 +455,6 @@ class OpenAI(commands.Cog):
                     return
                 await asyncio.sleep(2)
 
-
             messages = self.openai_client.beta.threads.messages.list(
                 thread_id=thread_id
             )
@@ -486,6 +477,9 @@ class OpenAI(commands.Cog):
 
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
+
+    # TODO: add upload file for retrieval tool
+    # TODO: add ability to add functions to the assistant on the fly
 
     @commands.command(pass_context=True, aliases=["openai_ban_user", "openai_banuser", "obu"],
                       brief="Ban a user from using the openai cog")

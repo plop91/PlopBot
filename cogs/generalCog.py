@@ -1,3 +1,6 @@
+"""
+This cog contains the general commands for the bot.
+"""
 from discord.ext import commands, tasks
 from settings import add_to_json
 import settings

@@ -1,3 +1,6 @@
+"""
+This cog contains the admin commands for the bot.
+"""
 from discord.ext import commands
 import settings
 
