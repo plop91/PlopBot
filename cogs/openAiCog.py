@@ -328,16 +328,15 @@ class OpenAI(commands.Cog):
                             await ctx.send(f"tool call {tool_call.function.name} not recognized")
                     except Exception as e:
                         await ctx.send(f"Error: {e}")
+                try:
+                    self.openai_client.beta.threads.runs.submit_tool_outputs(
+                        thread_id=thread_id,
+                        run_id=run.id,
+                        tool_outputs=outputs
+                    )
+                except Exception as e:
+                    await ctx.send(f"Error: {e}")
 
-                run = self.openai_client.beta.threads.runs.submit_tool_outputs(
-                    thread_id=thread_id,
-                    run_id=run.id,
-                    tool_outputs=outputs
-                )
-                if run.status == "completed":
-                    await ctx.send("Tool call completed")
-                else:
-                    await ctx.send(f"Tool call failed with status {run.status}")
 
     @commands.command(pass_context=True, aliases=["ca", "chatassistant"],
                       brief="chat with an assistant using openai")
