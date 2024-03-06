@@ -14,53 +14,9 @@ from PIL import Image
 import json
 import asyncio
 
-import mysql.connector
-from mysql.connector import errorcode
+from db.openai_database_manager import OpenAIDatabaseManager
 
 global logger
-
-
-class OpenAIDatabaseManager:
-    """
-    This class is for managing the openai database
-    """
-
-    def __init__(self, db_host, db_username, db_password, database_name):
-        """
-        Constructor for the openai database manager
-        :param db_host: Database host
-        :param db_username: Database username
-        :param db_password: Database password
-        :param database_name: Database name
-        """
-        self.db = None
-        self.my_cursor = None
-
-        self.db_host = db_host
-        self.db_username = db_username
-        self.db_password = db_password
-        self.database_name = database_name
-
-        self.connect()
-
-    def connect(self):
-        """Connects to the database"""
-        try:
-            self.db = mysql.connector.connect(
-                host=self.db_host,
-                user=self.db_username,
-                password=self.db_password,
-                database=self.database_name
-            )
-            self.my_cursor = self.db.cursor()
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                settings.logger.warning("Soundboard user name or password is Bad")
-            elif e.errno == errorcode.ER_BAD_DB_ERROR:
-                settings.logger.warning("Database does not exist")
-            else:
-                settings.logger.warning(e)
-
 
 blacklist = []
 
@@ -88,6 +44,18 @@ class OpenAI(commands.Cog):
         self.api_key = settings.info_json["openai"]["apikey"]
         # openai.api_key = self.api_key
         self.openai_client = Oai(api_key=self.api_key)
+
+        self.db_manager = OpenAIDatabaseManager(
+            settings.info_json["openai"]["db_host"],
+            settings.info_json["openai"]["db_username"],
+            settings.info_json["openai"]["db_password"],
+            settings.info_json["openai"]["database_name"]
+        )
+
+        try:
+            self.db_manager.connect()
+        except Exception as e:
+            settings.logger.warning(f"Error connecting to openai database: {e}")
 
         self.active_assistants = {}
         self.active_threads = {}
@@ -125,6 +93,8 @@ class OpenAI(commands.Cog):
             image_filename = wget.download(image_url)
             await ctx.send(file=discord.File(image_filename))
             os.remove(image_filename)
+
+            # todo: add to database
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
@@ -159,6 +129,8 @@ class OpenAI(commands.Cog):
             image_filename = wget.download(image_url)
             await ctx.send(file=discord.File(image_filename))
             os.remove(image_filename)
+
+            # todo: add to database
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
@@ -419,6 +391,7 @@ class OpenAI(commands.Cog):
 
                 current_time = time.time()
                 if current_time - start_time > 60:
+                    # TODO: if the assistant times out, deduct from the user's usage, then cancel the run
                     await ctx.send("Assistant time out - cancelling")
                     run = self.openai_client.beta.threads.runs.cancel(
                         thread_id=thread_id,

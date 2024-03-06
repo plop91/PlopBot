@@ -5,6 +5,8 @@ name: DiscordBot
 
 on:
   push:
+    branches-ignore:
+      - ian-nightly
 
 jobs:
   build:
