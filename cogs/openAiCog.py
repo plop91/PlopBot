@@ -45,17 +45,17 @@ class OpenAI(commands.Cog):
         # openai.api_key = self.api_key
         self.openai_client = Oai(api_key=self.api_key)
 
-        self.db_manager = OpenAIDatabaseManager(
-            settings.info_json["openai"]["db_host"],
-            settings.info_json["openai"]["db_username"],
-            settings.info_json["openai"]["db_password"],
-            settings.info_json["openai"]["database_name"]
-        )
-
-        try:
-            self.db_manager.connect()
-        except Exception as e:
-            settings.logger.warning(f"Error connecting to openai database: {e}")
+        # self.db_manager = OpenAIDatabaseManager(
+        #     settings.info_json["openai"]["db_host"],
+        #     settings.info_json["openai"]["db_username"],
+        #     settings.info_json["openai"]["db_password"],
+        #     settings.info_json["openai"]["database_name"]
+        # )
+        #
+        # try:
+        #     self.db_manager.connect()
+        # except Exception as e:
+        #     settings.logger.warning(f"Error connecting to openai database: {e}")
 
         self.active_assistants = {}
         self.active_threads = {}
