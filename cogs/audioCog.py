@@ -2,6 +2,8 @@
 This cog is used to play audio from YouTube and the soundboard. It also has the ability to download mp3's from
 YouTube and add them to the soundboard. It also has the ability to play TTS audio.
 """
+from asyncio import sleep
+
 from discord.ext import commands, tasks
 from discord.errors import ClientException
 from discord.utils import get
@@ -275,12 +277,24 @@ class Audio(commands.Cog):
         if ctx.author not in settings.info_json["blacklist"]:
             if filename is None:
                 embed_var = discord.Embed(title="Soundboard files",
-                                          description="type '.play ' followed by a name to play "
+                                          description="type '.play ' or '.p' followed by a name to play "
                                                       "file", color=0x00ff00)
                 s = ""
+                field_index = 0
                 for file in self.sounds.keys():
-                    if len(s) + len(file) >= 1024:
+                    settings.logger.info(f"DEBUG: field_index: {field_index}")
+                    if len(s) + len(file) >= 1024 and field_index > 3:
+                        settings.logger.info(f"DEBUG: SENDING MESSAGE")
+                        await ctx.channel.send(embed=embed_var)
+                        field_index = 0
+                        embed_var = discord.Embed(title="Soundboard files",
+                                                  description="type '.play ' or '.p' followed by a name to play "
+                                                              "file", color=0x00ff00)
+                        s = ""
+
+                    elif len(s) + len(file) >= 1024:
                         embed_var.add_field(name="play from a filename:", value=s, inline=False)
+                        field_index += 1
                         s = ""
                     s += file + ", "
 
@@ -288,9 +302,10 @@ class Audio(commands.Cog):
 
                 embed_var.add_field(name="play a random file:", value="random", inline=False)
 
+                settings.logger.info(f"DEBUG: SENDING REAL MESSAGE")
                 await ctx.channel.send(embed=embed_var)
-                await ctx.message.delete()
 
+                await ctx.message.delete()
                 return
 
             await self.play_clip(ctx, ctx.voice_client, filename)
