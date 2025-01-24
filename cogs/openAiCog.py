@@ -6,7 +6,7 @@ import time
 import discord
 import settings
 from discord.ext import commands
-from openai import OpenAI as Oai
+from openai import OpenAI as Oai, BadRequestError
 import wget
 import os
 import textwrap
@@ -81,20 +81,28 @@ class OpenAI(commands.Cog):
         if not blacklisted(ctx.author):
             prompt = ' '.join(args)
             settings.logger.info(f"generating image")
-            response = self.openai_client.images.generate(
-                model="dall-e-3",
-                prompt=prompt,
-                size="1024x1024",
-                quality="standard",
-                n=1
-            )
-            # image_url = response['data'][0]['url']
-            image_url = response.data[0].url
-            image_filename = wget.download(image_url)
-            await ctx.send(file=discord.File(image_filename))
-            os.remove(image_filename)
-
-            # todo: add to database
+            try:
+                response = self.openai_client.images.generate(
+                    model="dall-e-3",
+                    prompt=prompt,
+                    size="1024x1024",
+                    quality="standard",
+                    n=1
+                )
+                image_url = response.data[0].url
+                image_filename = wget.download(image_url)
+                await ctx.send(file=discord.File(image_filename))
+                os.remove(image_filename)
+                # TODO: add to database
+            except BadRequestError as e:
+                """
+                openai.BadRequestError: Error code: 400 - {'error': {'code': 'content_policy_violation', 'message': 'Your request was rejected as a result of our safety system. Your prompt may contain text that is not allowed by our safety system.', 'param': None, 'type': 'invalid_request_error'}}
+                """
+                if e.code == 400:
+                    if e.code == "content_policy_violation":
+                        await ctx.send("Your prompt was rejected by OpenAI's safety system due to content policy violation")
+                        return
+                raise e
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
