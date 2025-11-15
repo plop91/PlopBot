@@ -1,0 +1,55 @@
+{
+  "token": "DISCORD_BOT_TOKEN",
+  "database": {
+    "server_address": "BOT_DATABASE_IP",
+    "username": "BOT_DATABASE_USERNAME",
+    "password": "BOT_DATABASE_PASSWORD",
+    "database": "BOT_DATABASE_NAME"
+  },
+  "soundboard_database": {
+    "server_address": "SOUNDBOARD_DATABASE_IP",
+    "username": "SOUNDBOARD_DATABASE_USERNAME",
+    "password": "SOUNDBOARD_DATABASE_PASSWORD",
+    "database": "SOUNDBOARD_DATABASE_NAME"
+  },
+  "twitter": {
+    "apikey": "TWITTER_API_KEY",
+    "apisecret": "TWITTER_API_SECRET",
+    "accesstoken": "TWITTER_ACCESS",
+    "accesstokensecret": "TWITTER_ACCESS_SECRET"
+  },
+  "openai": {
+    "apikey": "OPENAI_API_KEY",
+    "text_gen_engine": "gpt-4"
+  },
+  "servers": {
+    "SERVERNAME": 12345 //SERVER_ID
+  },
+  "valid_users": [
+    "VALID_USER_ID"
+  ],
+  "admins": [
+    "ADMIN_USER_ID"
+  ],
+  "username": {
+    "REAL_NAME": "USERNAME"
+  },
+  "command_channels": [
+    "bot_commands"
+  ],
+  "welcome_channels": [
+    "general"
+  ],
+  "welcome_messages": [
+    "hello"
+  ],
+  "status": [
+    "Status"
+  ],
+  "scribble": [
+
+  ],
+  "blacklist":[
+
+  ]
+}

@@ -1,11 +1,15 @@
-import logging
+"""
+This cog is used to play audio from YouTube and the soundboard. It also has the ability to download mp3's from
+YouTube and add them to the soundboard. It also has the ability to play TTS audio.
+"""
+from asyncio import sleep
+
 from discord.ext import commands, tasks
 from discord.errors import ClientException
 from discord.utils import get
 from gtts import gTTS
 import asyncio
 import os
-import json
 import random
 from yt_dlp import YoutubeDL
 import discord
@@ -43,7 +47,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         :param data: The data of the audio.
         :param volume: The volume of the audio.
         """
-        super().__init__(source, volume)
+        super().__init__(source, volume=volume)
 
         self.data = data
 
@@ -51,12 +55,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.url = data.get('url')
 
     @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
+    async def from_url(cls, url, *, loop=None, stream=False, volume=0.5):
         """
         This function is used to get the audio from a YouTube video.
         :param url: The url of the YouTube video.
         :param loop: The loop to use.
         :param stream: Whether to stream the audio.
+        :param volume: The volume of the audio.
         :return: The YTDLSource object.
         """
         loop = loop or asyncio.get_event_loop()
@@ -67,14 +72,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
             data = data['entries'][0]
 
         filename = data['url'] if stream else ytdl.prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
+        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data, volume=volume)
 
 
 class Audio(commands.Cog):
     """
     Audio cog for the bot.
     """
-    volume = 0.7
 
     def __init__(self, client):
         """
@@ -89,6 +93,7 @@ class Audio(commands.Cog):
             if file.endswith(".mp3"):
                 temp = file.strip().replace(".mp3", "").lower()
                 self.sounds[temp] = "soundboard/" + file
+        self.volume = 0.7
 
         self.ghost_message = {}
 
@@ -156,7 +161,9 @@ class Audio(commands.Cog):
                                 f"The audio is being downloaded and should be ready shortly the name of the clip will "
                                 f"be: {filename.replace('.mp3', '')}")
                             await attachment.save(f"./soundboard/raw/{filename}")
-                            audio_json = ffmpeg.probe(f"./soundboard/raw/{filename}")
+                            # Run ffmpeg.probe in executor to avoid blocking event loop
+                            loop = asyncio.get_event_loop()
+                            audio_json = await loop.run_in_executor(None, ffmpeg.probe, f"./soundboard/raw/{filename}")
 
                             # If the clip is too long it needs to be reviewed
                             if float(audio_json['streams'][0]['duration']) >= 60:
@@ -213,11 +220,12 @@ class Audio(commands.Cog):
             if filename == "random":
                 filename = random.choice(list(self.sounds.values()))
                 source = discord.PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio(source=f"{filename}"))
+                    discord.FFmpegPCMAudio(source=f"{filename}"), volume=self.volume)
             else:
                 if filename + ".mp3" in os.listdir("soundboard"):
                     source = discord.PCMVolumeTransformer(
-                        discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"))
+                        discord.FFmpegPCMAudio(source=f"{os.path.join('soundboard', filename + '.mp3')}"),
+                        volume=self.volume)
                 else:
                     await text_channel.send("That clip does not exist.")
                     return
@@ -234,14 +242,16 @@ class Audio(commands.Cog):
                 f = filename.replace("soundboard/", "").replace(".mp3", "")
 
                 embed_var = discord.Embed(title="Play Command",
-                                          description=f"{text_channel.author} played a random clip: {f}",
+                                          description=f"Playing random clip: {f}",
                                           color=0xffff00)
             else:
                 embed_var = discord.Embed(title="Play Command",
-                                          description=f"{text_channel.author} played: {fn}",
+                                          description=f"Playing: {fn}",
                                           color=0xffff00)
 
-            self.ghost_message[text_channel.guild.id] = await text_channel.channel.send(embed=embed_var)
+            # text_channel could be a Context object or a Channel object
+            channel = text_channel.channel if hasattr(text_channel, 'channel') else text_channel
+            self.ghost_message[text_channel.guild.id] = await channel.send(embed=embed_var)
 
         except AttributeError:
             settings.logger.info(f"Attribute Error: {traceback.format_exc()}")
@@ -271,12 +281,24 @@ class Audio(commands.Cog):
         if ctx.author not in settings.info_json["blacklist"]:
             if filename is None:
                 embed_var = discord.Embed(title="Soundboard files",
-                                          description="type '.play ' followed by a name to play "
+                                          description="type '.play ' or '.p' followed by a name to play "
                                                       "file", color=0x00ff00)
                 s = ""
+                field_index = 0
                 for file in self.sounds.keys():
-                    if len(s) + len(file) >= 1024:
+                    settings.logger.info(f"DEBUG: field_index: {field_index}")
+                    if len(s) + len(file) >= 1024 and field_index > 3:
+                        settings.logger.info(f"DEBUG: SENDING MESSAGE")
+                        await ctx.channel.send(embed=embed_var)
+                        field_index = 0
+                        embed_var = discord.Embed(title="Soundboard files",
+                                                  description="type '.play ' or '.p' followed by a name to play "
+                                                              "file", color=0x00ff00)
+                        s = ""
+
+                    elif len(s) + len(file) >= 1024:
                         embed_var.add_field(name="play from a filename:", value=s, inline=False)
+                        field_index += 1
                         s = ""
                     s += file + ", "
 
@@ -284,9 +306,10 @@ class Audio(commands.Cog):
 
                 embed_var.add_field(name="play a random file:", value="random", inline=False)
 
+                settings.logger.info(f"DEBUG: SENDING REAL MESSAGE")
                 await ctx.channel.send(embed=embed_var)
-                await ctx.message.delete()
 
+                await ctx.message.delete()
                 return
 
             await self.play_clip(ctx, ctx.voice_client, filename)
@@ -308,7 +331,7 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"youtube from {ctx.author} :{url}")
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.client.loop)
+            player = await YTDLSource.from_url(url, loop=self.client.loop, volume=self.volume)
             ctx.voice_client.play(player)
         await ctx.message.delete()
 
@@ -324,7 +347,7 @@ class Audio(commands.Cog):
         :return: None
         """
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True)
+            player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True, volume=self.volume)
             ctx.voice_client.play(player)
         await ctx.message.delete()
 
@@ -436,7 +459,9 @@ class Audio(commands.Cog):
         if volume > 100 or volume < 0:
             return await ctx.send("Volume must be between 0 and 100")
 
-        ctx.voice_client.source.volume = volume / 100
+        self.volume = volume / 100
+        if ctx.voice_client.is_connected() and ctx.voice_client.source:
+            ctx.voice_client.source.volume = self.volume
         settings.logger.info(f"volume changed to {volume} by {ctx.author}")
         await ctx.message.delete()
         await ctx.send(f"Changed volume to {volume}")
@@ -452,10 +477,19 @@ class Audio(commands.Cog):
         :arg sound: sound to return
         :return: None
         """
-        if os.path.isfile(os.path.join("soundboard", sound)):
-            await ctx.channel.send(sound, file=discord.File(sound + ".mp3", os.path.join("soundboard", sound)))
+        # Validate filename to prevent path traversal
+        if '..' in sound or sound.startswith('/') or sound.startswith('\\'):
+            await ctx.channel.send("Invalid filename")
+            return
 
+        filepath = os.path.join("soundboard", sound)
+        # Ensure the resolved path is within the soundboard directory
+        if not os.path.abspath(filepath).startswith(os.path.abspath("soundboard")):
+            await ctx.channel.send("Invalid filename")
+            return
 
+        if os.path.isfile(filepath):
+            await ctx.channel.send(sound, file=discord.File(filepath))
 
     @commands.command(aliases=['SAY'],
                       brief="",
@@ -470,6 +504,13 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"say from {ctx.author} text:{text}")
         text = text.strip().lower()
+
+        # Limit TTS text length to prevent abuse
+        MAX_TTS_LENGTH = 500
+        if len(text) > MAX_TTS_LENGTH:
+            await ctx.send(f"Text too long. Max {MAX_TTS_LENGTH} characters allowed")
+            return
+
         gTTS(text).save(os.path.join("soundboard", tts_file + '.mp3'))
         await self.play_clip(ctx, ctx.voice_client, tts_file)
         await ctx.message.delete()
@@ -504,4 +545,9 @@ class Audio(commands.Cog):
 
 
 async def setup(client):
+    """
+    Sets up the cog
+    :param client: Client object
+    :return: None
+    """
     await client.add_cog(Audio(client))

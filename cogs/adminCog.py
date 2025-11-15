@@ -1,3 +1,6 @@
+"""
+This cog contains the admin commands for the bot.
+"""
 from discord.ext import commands
 import settings
 
@@ -53,12 +56,11 @@ class Admin(commands.Cog):
             if str(ctx.author) in settings.info_json["admins"]:
                 settings.logger.info(f"kill from {ctx.author}!")
                 if str(ctx.message.channel) in settings.info_json["command_channels"]:
-                    await self.client.logout()
+                    await self.client.close()
             else:
-                await ctx.channel.send(ctx.author)
-                await ctx.channel.send(settings.info_json["admins"])
-                await ctx.channel.send("you are not an admin")
-        # if the bot fails to log out kill it
+                await ctx.channel.send("You do not have permission to run this command")
+                settings.logger.warning(f"Unauthorized kill attempt by {ctx.author}")
+        # if the bot fails to close kill it
         except Exception:
             exit(1)
 
@@ -66,6 +68,8 @@ class Admin(commands.Cog):
     async def restart(self, ctx):
         """
         Preforms a restart of the bot
+        Note: This command closes the bot. The bot should be managed by a process manager
+        (like systemd or docker) that will automatically restart it.
         :arg ctx: context of the command
         :return: None
         """
@@ -75,13 +79,12 @@ class Admin(commands.Cog):
             if str(ctx.author) in settings.info_json["admins"]:
                 settings.logger.info(f"restart from {ctx.author}!")
                 if str(ctx.message.channel) in settings.info_json["command_channels"]:
-                    await self.client.logout()
-                    await self.client.start(settings.info_json["token"])
+                    await ctx.send("Restarting bot... (requires process manager)")
+                    await self.client.close()
             else:
-                await ctx.channel.send(ctx.author)
-                await ctx.channel.send(settings.info_json["admins"])
-                await ctx.channel.send("you are not an admin")
-        # if the bot fails to log out kill it
+                await ctx.channel.send("You do not have permission to run this command")
+                settings.logger.warning(f"Unauthorized restart attempt by {ctx.author}")
+        # if the bot fails to close kill it
         except Exception:
             exit(1)
 

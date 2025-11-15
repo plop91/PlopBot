@@ -1,3 +1,6 @@
+"""
+This cog contains the general commands for the bot.
+"""
 from discord.ext import commands, tasks
 from settings import add_to_json
 import settings
@@ -85,6 +88,10 @@ class General(commands.Cog):
         :arg content: content to repeat
         :return: None
         """
+        MAX_REPEATS = 10
+        if times > MAX_REPEATS:
+            await ctx.send(f"Max {MAX_REPEATS} repeats allowed")
+            return
         for i in range(times):
             await ctx.send(content)
 
@@ -109,7 +116,7 @@ class General(commands.Cog):
         await ctx.channel.send(embed=embed_var)
         await ctx.message.delete()
 
-    @tasks.loop(seconds=0, minutes=30, hours=1)
+    @tasks.loop(hours=1)
     async def change_status(self):
         """
         changes the bot to a randomly provided status.
