@@ -161,7 +161,9 @@ class Audio(commands.Cog):
                                 f"The audio is being downloaded and should be ready shortly the name of the clip will "
                                 f"be: {filename.replace('.mp3', '')}")
                             await attachment.save(f"./soundboard/raw/{filename}")
-                            audio_json = ffmpeg.probe(f"./soundboard/raw/{filename}")
+                            # Run ffmpeg.probe in executor to avoid blocking event loop
+                            loop = asyncio.get_event_loop()
+                            audio_json = await loop.run_in_executor(None, ffmpeg.probe, f"./soundboard/raw/{filename}")
 
                             # If the clip is too long it needs to be reviewed
                             if float(audio_json['streams'][0]['duration']) >= 60:
@@ -240,14 +242,16 @@ class Audio(commands.Cog):
                 f = filename.replace("soundboard/", "").replace(".mp3", "")
 
                 embed_var = discord.Embed(title="Play Command",
-                                          description=f"{text_channel.author} played a random clip: {f}",
+                                          description=f"Playing random clip: {f}",
                                           color=0xffff00)
             else:
                 embed_var = discord.Embed(title="Play Command",
-                                          description=f"{text_channel.author} played: {fn}",
+                                          description=f"Playing: {fn}",
                                           color=0xffff00)
 
-            self.ghost_message[text_channel.guild.id] = await text_channel.channel.send(embed=embed_var)
+            # text_channel could be a Context object or a Channel object
+            channel = text_channel.channel if hasattr(text_channel, 'channel') else text_channel
+            self.ghost_message[text_channel.guild.id] = await channel.send(embed=embed_var)
 
         except AttributeError:
             settings.logger.info(f"Attribute Error: {traceback.format_exc()}")
@@ -473,8 +477,19 @@ class Audio(commands.Cog):
         :arg sound: sound to return
         :return: None
         """
-        if os.path.isfile(os.path.join("soundboard", sound)):
-            await ctx.channel.send(sound, file=discord.File(sound + ".mp3", os.path.join("soundboard", sound)))
+        # Validate filename to prevent path traversal
+        if '..' in sound or sound.startswith('/') or sound.startswith('\\'):
+            await ctx.channel.send("Invalid filename")
+            return
+
+        filepath = os.path.join("soundboard", sound)
+        # Ensure the resolved path is within the soundboard directory
+        if not os.path.abspath(filepath).startswith(os.path.abspath("soundboard")):
+            await ctx.channel.send("Invalid filename")
+            return
+
+        if os.path.isfile(filepath):
+            await ctx.channel.send(sound, file=discord.File(filepath))
 
     @commands.command(aliases=['SAY'],
                       brief="",
@@ -489,6 +504,13 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"say from {ctx.author} text:{text}")
         text = text.strip().lower()
+
+        # Limit TTS text length to prevent abuse
+        MAX_TTS_LENGTH = 500
+        if len(text) > MAX_TTS_LENGTH:
+            await ctx.send(f"Text too long. Max {MAX_TTS_LENGTH} characters allowed")
+            return
+
         gTTS(text).save(os.path.join("soundboard", tts_file + '.mp3'))
         await self.play_clip(ctx, ctx.voice_client, tts_file)
         await ctx.message.delete()

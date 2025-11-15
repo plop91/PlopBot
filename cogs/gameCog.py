@@ -75,7 +75,11 @@ class Game(commands.Cog):
         :return: None
         """
 
-        iteams = int(teams)
+        try:
+            iteams = int(teams)
+        except ValueError:
+            await ctx.send("Invalid number of teams")
+            return
 
         # get current voice channel of author
         voice = ctx.author.voice.channel
@@ -83,10 +87,12 @@ class Game(commands.Cog):
         if voice is not None:
             # filter bots from list of members in channel
             people = list(filter(lambda x: (not x.bot), voice.members))
-            settings.logger.info(f"{iteams} teams with members: ".join(m.name for m in people))
+            members_str = ", ".join(m.name for m in people)
+            settings.logger.info(f"{iteams} teams with members: {members_str}")
 
             if iteams < 2:
                 iteams = 2
+
 
             if len(people) < iteams:
                 settings.logger.info(f"Not enough players for {iteams} teams.")
@@ -113,8 +119,13 @@ class Game(commands.Cog):
         :arg times: number of times to roll
         :return: None
         """
-        isides = int(sides)
-        itimes = int(times)
+        try:
+            isides = int(sides)
+            itimes = int(times)
+        except ValueError:
+            await ctx.send("Invalid number for sides or times")
+            return
+
         settings.logger.info(f"roll from {ctx.author}: {isides} sides")
         if isides > 1 and itimes > 0:
             await ctx.message.channel.send(

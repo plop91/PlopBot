@@ -18,7 +18,31 @@ from db.openai_database_manager import OpenAIDatabaseManager
 
 global logger
 
-blacklist = []
+BLACKLIST_FILE = "openai_blacklist.json"
+
+
+def load_blacklist():
+    """Load blacklist from file"""
+    try:
+        if os.path.exists(BLACKLIST_FILE):
+            with open(BLACKLIST_FILE, 'r') as f:
+                return json.load(f)
+        return []
+    except Exception as e:
+        settings.logger.error(f"Error loading blacklist: {e}")
+        return []
+
+
+def save_blacklist(blacklist_data):
+    """Save blacklist to file"""
+    try:
+        with open(BLACKLIST_FILE, 'w') as f:
+            json.dump(blacklist_data, f, indent=4)
+    except Exception as e:
+        settings.logger.error(f"Error saving blacklist: {e}")
+
+
+blacklist = load_blacklist()
 
 
 def blacklisted(user):
@@ -70,6 +94,7 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["genimg", "genimage", "gen_image"],
                       brief="generate an image from a prompt using openai")
+    @commands.cooldown(1, 60, commands.BucketType.user)
     async def gen_img(self, ctx, *args):
         """
         Generate an image from a prompt using openai
@@ -108,14 +133,26 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["editimg", "editimage", "edit_image"],
                       brief="edit an image from a prompt using openai")
+<<<<<<< HEAD
     async def edit_img(self, ctx):
+=======
+    @commands.cooldown(1, 60, commands.BucketType.user)
+    async def edit_img(self, ctx, *args):
+>>>>>>> f372db8 (Fix critical bugs and security issues from code review)
         """
         Edit an image from a prompt using openai
         :arg ctx: Context
         :return: None
         """
 
+<<<<<<< HEAD
         if not blacklisted(ctx.author):
+=======
+        if not blackisted(ctx.author):
+            if not ctx.message.attachments:
+                await ctx.send("No image attached")
+                return
+>>>>>>> f372db8 (Fix critical bugs and security issues from code review)
             if ctx.message.attachments[0] is None:
                 await ctx.send("No image attached")
                 return
@@ -127,11 +164,27 @@ class OpenAI(commands.Cog):
             png = png.resize((1024, 1024))
             png.save("temp.png", 'png', quality=100)
             settings.logger.info(f"editing image")
+<<<<<<< HEAD
             response = self.openai_client.images.create_variation(
                 image=open("temp.png", "rb"),
                 n=1,
                 size="1024x1024"
             )
+=======
+            # response = openai.Image.create_edit(
+            #     image=open("temp.png", "rb"),
+            #     mask=open("mask.png", "rb"),
+            #     prompt=prompt,
+            #     n=1,
+            #     size="1024x1024"
+            # )
+            with open("temp.png", "rb") as image_file:
+                response = self.openai_client.images.create_variation(
+                    image=image_file,
+                    n=1,
+                    size="1024x1024"
+                )
+>>>>>>> f372db8 (Fix critical bugs and security issues from code review)
             os.remove("temp.png")
             image_url = response['data'][0]['url']
             image_filename = wget.download(image_url)
@@ -184,6 +237,7 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["cra", "createassistant"],
                       brief="Create an assistant from a prompt using openai")
+    @commands.cooldown(1, 60, commands.BucketType.user)
     async def create_assistant(self, ctx, name, *args):
         """
         Create an assistant from a prompt using openai
@@ -348,6 +402,7 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["ca", "chatassistant"],
                       brief="chat with an assistant using openai")
+    @commands.cooldown(1, 60, commands.BucketType.user)
     async def chat_assistant(self, ctx, name, *args):
         """
         Chat with an assistant using openai
@@ -397,6 +452,7 @@ class OpenAI(commands.Cog):
                     run_id=run.id
                 )
 
+<<<<<<< HEAD
                 current_time = time.time()
                 if current_time - start_time > 60:
                     # TODO: if the assistant times out, deduct from the user's usage, then cancel the run
@@ -412,6 +468,10 @@ class OpenAI(commands.Cog):
                     return
 
                 if "completed" in run.status:
+=======
+                if run.status == "completed":
+                    # await ctx.send("Assistant complete")
+>>>>>>> f372db8 (Fix critical bugs and security issues from code review)
                     break
                 elif run.status == "queued":
                     pass
@@ -472,8 +532,13 @@ class OpenAI(commands.Cog):
         :return: None
         """
         if ctx.author in settings.info_json["admins"]:
-            blacklist.append(str(user).strip().lower())
-            await ctx.send(f"{user} has been banned from using the openai cog")
+            user_str = str(user).strip().lower()
+            if user_str not in blacklist:
+                blacklist.append(user_str)
+                save_blacklist(blacklist)
+                await ctx.send(f"{user} has been banned from using the openai cog")
+            else:
+                await ctx.send(f"{user} is already banned")
         else:
             await ctx.send(f"{ctx.author} is not an admin and cannot ban someone from using the openai cog")
 
@@ -487,8 +552,13 @@ class OpenAI(commands.Cog):
         :return: None
         """
         if ctx.author in settings.info_json["admins"]:
-            blacklist.remove(str(user).strip().lower())
-            await ctx.send(f"{user} has been unbanned from using the openai cog")
+            user_str = str(user).strip().lower()
+            if user_str in blacklist:
+                blacklist.remove(user_str)
+                save_blacklist(blacklist)
+                await ctx.send(f"{user} has been unbanned from using the openai cog")
+            else:
+                await ctx.send(f"{user} is not in the blacklist")
         else:
             await ctx.send(f"{user} is not an admin and cannot be unbanned from using the openai cog")
 

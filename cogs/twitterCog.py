@@ -64,24 +64,30 @@ class Twitter(commands.Cog):
         :param save_as: filename to save the image as
         :return: None
         """
-        tweets = self.auth_api.user_timeline(screen_name=username, count=1, include_rts=False,
-                                             exclude_replies=True)
-        tmp = []
-        tweets_for_csv = [tweet.text for tweet in tweets]  # CSV file created
-        for j in tweets_for_csv:
-            # Appending tweets to the empty array tmp
-            tmp.append(j)
-        print(tmp)
-        media_files = set()
-        for status in tweets:
-            media = status.entities.get('media', [])
-            if len(media) > 0:
-                media_files.add(media[0]['media_url'])
-        for media_file in media_files:
-            if save_as.endswith(".jpg") or save_as.endswith(".png"):
-                wget.download(media_file, save_as)
-            else:
-                wget.download(media_file, "image.jpg")
+        try:
+            tweets = self.auth_api.user_timeline(screen_name=username, count=1, include_rts=False,
+                                                 exclude_replies=True)
+            tmp = []
+            tweets_for_csv = [tweet.text for tweet in tweets]  # CSV file created
+            for j in tweets_for_csv:
+                # Appending tweets to the empty array tmp
+                tmp.append(j)
+            settings.logger.debug(f"Tweet data: {tmp}")
+            media_files = set()
+            for status in tweets:
+                media = status.entities.get('media', [])
+                if len(media) > 0:
+                    media_files.add(media[0]['media_url'])
+            for media_file in media_files:
+                try:
+                    if save_as.endswith(".jpg") or save_as.endswith(".png"):
+                        wget.download(media_file, save_as)
+                    else:
+                        wget.download(media_file, "image.jpg")
+                except Exception as e:
+                    settings.logger.error(f"Download failed: {e}")
+        except Exception as e:
+            settings.logger.error(f"Twitter API error: {e}")
 
 
 async def setup(client):
