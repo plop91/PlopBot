@@ -33,13 +33,17 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         """
-        logs any incoming messages and responds to 'hey' with 'hi' to verify bot is functional.
+        Responds to 'hey' with 'hi' to verify bot is functional.
+        Only logs command messages to respect user privacy.
         :arg message: message object
         :return: None
         """
         _id = message.guild
-        message.content = message.content.strip().lower()
-        settings.logger.info(f"Message from {message.author}: {message.content}")
+        # Only log if it's a command (starts with prefix) or from the bot itself
+        # This reduces privacy concerns and log file size
+        if message.content.startswith(tuple(settings.info_json.get("command_prefixes", ["!"]))):
+            settings.logger.info(f"Command from {message.author}: {message.content}")
+
         if message.author != self.client.user:
             if message.content.strip().lower() == "hey":
                 await message.channel.send("Hi")

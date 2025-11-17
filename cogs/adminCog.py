@@ -3,6 +3,7 @@ This cog contains the admin commands for the bot.
 """
 from discord.ext import commands
 import settings
+import subprocess
 
 
 class Admin(commands.Cog):
@@ -32,7 +33,28 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
-        pass
+        if str(ctx.author) in settings.info_json["admins"]:
+            try:
+                # Get the current git commit hash
+                result = subprocess.run(
+                    ['git', 'rev-parse', '--short', 'HEAD'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    commit_hash = result.stdout.strip()
+                    await ctx.send(f"Current commit hash: `{commit_hash}`")
+                else:
+                    await ctx.send("Failed to get git commit hash")
+            except subprocess.TimeoutExpired:
+                await ctx.send("Git command timed out")
+            except Exception as e:
+                settings.logger.error(f"Error getting git hash: {e}")
+                await ctx.send("Error retrieving git commit hash")
+        else:
+            await ctx.send("You do not have permission to run this command")
+            settings.logger.warning(f"Unauthorized hash command attempt by {ctx.author}")
 
     @commands.command(brief="Admin only command: provide current version")
     async def version(self, ctx):
@@ -41,7 +63,28 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
-        pass
+        if str(ctx.author) in settings.info_json["admins"]:
+            try:
+                # Try to get version from git tag
+                result = subprocess.run(
+                    ['git', 'describe', '--tags', '--always'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    version = result.stdout.strip()
+                    await ctx.send(f"Bot version: `{version}`")
+                else:
+                    await ctx.send("Version information not available")
+            except subprocess.TimeoutExpired:
+                await ctx.send("Git command timed out")
+            except Exception as e:
+                settings.logger.error(f"Error getting version: {e}")
+                await ctx.send("Error retrieving version information")
+        else:
+            await ctx.send("You do not have permission to run this command")
+            settings.logger.warning(f"Unauthorized version command attempt by {ctx.author}")
 
     @commands.command(brief="Admin only command: Turn the bot off.")
     async def kill(self, ctx):

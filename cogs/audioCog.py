@@ -17,6 +17,7 @@ import ffmpeg
 import shutil
 import settings
 import traceback
+import re
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -96,6 +97,42 @@ class Audio(commands.Cog):
         self.volume = 0.7
 
         self.ghost_message = {}
+
+        # URL validation pattern for YouTube and common video sites
+        self.url_pattern = re.compile(
+            r'^https?://'  # http:// or https://
+            r'(?:(?:www|m)\.)?'  # optional www. or m.
+            r'(?:youtube\.com|youtu\.be|twitch\.tv|soundcloud\.com|vimeo\.com|dailymotion\.com)'  # allowed domains
+            r'[^\s]*$',  # rest of URL
+            re.IGNORECASE
+        )
+
+    def validate_url(self, url):
+        """
+        Validates that a URL is from an allowed domain
+        :param url: URL to validate
+        :return: True if valid, False otherwise
+        """
+        if not url or not isinstance(url, str):
+            return False
+        return bool(self.url_pattern.match(url.strip()))
+
+    def sanitize_filename(self, filename):
+        """
+        Sanitizes a filename to prevent path traversal and other attacks
+        :param filename: Filename to sanitize
+        :return: Sanitized filename or None if invalid
+        """
+        if not filename or not isinstance(filename, str):
+            return None
+        # Remove any path components
+        filename = os.path.basename(filename)
+        # Remove any dangerous characters
+        filename = re.sub(r'[^\w\s\-.]', '', filename)
+        # Prevent empty or hidden files
+        if not filename or filename.startswith('.'):
+            return None
+        return filename.strip().lower()
 
     @staticmethod
     def clean_youtube():
@@ -279,6 +316,15 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"play from {ctx.author} :{filename}")
         if ctx.author not in settings.info_json["blacklist"]:
+            # Sanitize filename if provided
+            if filename is not None:
+                sanitized = self.sanitize_filename(filename)
+                if not sanitized:
+                    await ctx.send("Invalid filename provided.")
+                    await ctx.message.delete()
+                    return
+                filename = sanitized
+
             if filename is None:
                 embed_var = discord.Embed(title="Soundboard files",
                                           description="type '.play ' or '.p' followed by a name to play "
@@ -330,9 +376,20 @@ class Audio(commands.Cog):
         :return: None
         """
         settings.logger.info(f"youtube from {ctx.author} :{url}")
+
+        # Validate URL before processing
+        if not self.validate_url(url):
+            await ctx.send("Invalid URL. Only YouTube, Twitch, SoundCloud, Vimeo, and Dailymotion URLs are allowed.")
+            await ctx.message.delete()
+            return
+
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.client.loop, volume=self.volume)
-            ctx.voice_client.play(player)
+            try:
+                player = await YTDLSource.from_url(url, loop=self.client.loop, volume=self.volume)
+                ctx.voice_client.play(player)
+            except Exception as e:
+                settings.logger.error(f"Error playing YouTube URL: {e}")
+                await ctx.send("Failed to play the requested URL.")
         await ctx.message.delete()
 
     @commands.command(pass_context=True,
@@ -346,9 +403,19 @@ class Audio(commands.Cog):
         :arg url: url of the YouTube video to play
         :return: None
         """
+        # Validate URL before processing
+        if not self.validate_url(url):
+            await ctx.send("Invalid URL. Only YouTube, Twitch, SoundCloud, Vimeo, and Dailymotion URLs are allowed.")
+            await ctx.message.delete()
+            return
+
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True, volume=self.volume)
-            ctx.voice_client.play(player)
+            try:
+                player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True, volume=self.volume)
+                ctx.voice_client.play(player)
+            except Exception as e:
+                settings.logger.error(f"Error streaming URL: {e}")
+                await ctx.send("Failed to stream the requested URL.")
         await ctx.message.delete()
 
     @commands.command(pass_context=True,

@@ -51,7 +51,10 @@ def init(args):
         info_json = json.load(f)
         f.close()
     global token
-    token = info_json["token"]
+    # Use environment variable for token if available, otherwise fallback to JSON
+    token = os.environ.get('DISCORD_BOT_TOKEN', info_json.get("token"))
+    if not token:
+        raise ValueError("Discord bot token not found in environment variables or config file")
     # <json------------------------------------------------------------------------------------------------------------>
 
     # <soundboard_db--------------------------------------------------------------------------------------------------->
@@ -68,7 +71,8 @@ def init(args):
         db_username = args.db_username
 
     if args.db_password is None:
-        db_password = info_json['soundboard_database']['password']
+        # Use environment variable for DB password if available, otherwise fallback to JSON
+        db_password = os.environ.get('DB_PASSWORD', info_json['soundboard_database']['password'])
     else:
         db_password = args.db_password
 
