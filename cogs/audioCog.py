@@ -192,15 +192,29 @@ class Audio(commands.Cog):
                                                        "for admin approval. Notify an admin to resolve.")
                         # If this is a new filename
                         else:
-                            filename = attachment.filename.lower().replace(' ', '').replace('_', '')
+                            # Sanitize filename to prevent path traversal attacks
+                            sanitized = self.sanitize_filename(attachment.filename)
+                            if not sanitized or not sanitized.endswith('.mp3'):
+                                await message.channel.send("Invalid filename. Only MP3 files with safe names are allowed.")
+                                continue
+
+                            filename = sanitized
+
+                            # Validate the full path to prevent directory traversal
+                            raw_path = os.path.join("./soundboard/raw", filename)
+                            if not os.path.abspath(raw_path).startswith(os.path.abspath("./soundboard/raw")):
+                                await message.channel.send("Invalid filename - path traversal detected")
+                                settings.logger.warning(f"Path traversal attempt by {message.author}: {attachment.filename}")
+                                continue
+
                             settings.logger.info(f"{message.author} added a mp3 file: {attachment}")
                             await message.channel.send(
                                 f"The audio is being downloaded and should be ready shortly the name of the clip will "
                                 f"be: {filename.replace('.mp3', '')}")
-                            await attachment.save(f"./soundboard/raw/{filename}")
+                            await attachment.save(raw_path)
                             # Run ffmpeg.probe in executor to avoid blocking event loop
                             loop = asyncio.get_event_loop()
-                            audio_json = await loop.run_in_executor(None, ffmpeg.probe, f"./soundboard/raw/{filename}")
+                            audio_json = await loop.run_in_executor(None, ffmpeg.probe, raw_path)
 
                             # If the clip is too long it needs to be reviewed
                             if float(audio_json['streams'][0]['duration']) >= 60:
@@ -208,10 +222,17 @@ class Audio(commands.Cog):
                                                            "reviewed before it can be played.")
                             else:
                                 try:
-                                    shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
+                                    # Validate destination path as well
+                                    dest_path = os.path.join("./soundboard", filename)
+                                    if not os.path.abspath(dest_path).startswith(os.path.abspath("./soundboard")):
+                                        await message.channel.send("Invalid filename - path traversal detected")
+                                        settings.logger.warning(f"Path traversal attempt in destination by {message.author}")
+                                        continue
+
+                                    shutil.copy(raw_path, dest_path)
                                     settings.soundboard_db.add_db_entry(filename.lower(),
                                                                         filename.replace(".mp3", "").lower())
-                                    self.sounds[filename.replace(".mp3", "").lower()] = f"./soundboard/{filename}"
+                                    self.sounds[filename.replace(".mp3", "").lower()] = dest_path
                                 except ValueError:
                                     await message.channel.send("A file with that name already existed in the database, "
                                                                "contact an admin!")
@@ -221,8 +242,8 @@ class Audio(commands.Cog):
             else:
                 # divide message as though it was a webhook command
                 data = message.content.split(':')
-                # check if it has a valid source
-                if data[0] == "www.sodersjerna.com":
+                # check if it has a valid source AND sufficient parts to prevent IndexError
+                if len(data) >= 4 and data[0] == "www.sodersjerna.com":
                     member = discord.utils.get(message.guild.members, name=data[1])
                     if member is not None and member.voice is not None:
                         for client in self.client.voice_clients:
@@ -578,8 +599,25 @@ class Audio(commands.Cog):
             await ctx.send(f"Text too long. Max {MAX_TTS_LENGTH} characters allowed")
             return
 
-        gTTS(text).save(os.path.join("soundboard", tts_file + '.mp3'))
-        await self.play_clip(ctx, ctx.voice_client, tts_file)
+        # Sanitize tts_file parameter to prevent path traversal
+        sanitized_tts_file = self.sanitize_filename(tts_file)
+        if not sanitized_tts_file:
+            await ctx.send("Invalid filename")
+            return
+
+        # Remove .mp3 extension if user provided it (we'll add it)
+        if sanitized_tts_file.endswith('.mp3'):
+            sanitized_tts_file = sanitized_tts_file[:-4]
+
+        # Validate the full path
+        filepath = os.path.join("soundboard", sanitized_tts_file + '.mp3')
+        if not os.path.abspath(filepath).startswith(os.path.abspath("soundboard")):
+            await ctx.send("Invalid filename - path traversal detected")
+            settings.logger.warning(f"Path traversal attempt in TTS by {ctx.author}: {tts_file}")
+            return
+
+        gTTS(text).save(filepath)
+        await self.play_clip(ctx, ctx.voice_client, sanitized_tts_file)
         await ctx.message.delete()
 
     @play.before_invoke

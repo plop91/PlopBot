@@ -505,7 +505,12 @@ class OpenAI(commands.Cog):
         :param user: User to ban
         :return: None
         """
-        if ctx.author in settings.info_json["admins"]:
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
+        if is_admin:
             user_str = str(user).strip().lower()
             if user_str not in blacklist:
                 blacklist.append(user_str)
@@ -514,7 +519,8 @@ class OpenAI(commands.Cog):
             else:
                 await ctx.send(f"{user} is already banned")
         else:
-            await ctx.send(f"{ctx.author} is not an admin and cannot ban someone from using the openai cog")
+            await ctx.send(f"You do not have permission to run this command")
+            settings.logger.warning(f"Unauthorized openai_ban attempt by {ctx.author}")
 
     @commands.command(pass_context=True, aliases=["openai_unban_user", "openai_unbanuser"],
                       brief="Unban a user from using the openai cog")
@@ -525,7 +531,12 @@ class OpenAI(commands.Cog):
         :param user: User to unban
         :return: None
         """
-        if ctx.author in settings.info_json["admins"]:
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
+        if is_admin:
             user_str = str(user).strip().lower()
             if user_str in blacklist:
                 blacklist.remove(user_str)
@@ -534,7 +545,8 @@ class OpenAI(commands.Cog):
             else:
                 await ctx.send(f"{user} is not in the blacklist")
         else:
-            await ctx.send(f"{user} is not an admin and cannot be unbanned from using the openai cog")
+            await ctx.send(f"You do not have permission to run this command")
+            settings.logger.warning(f"Unauthorized openai_unban attempt by {ctx.author}")
 
 
 async def setup(client):
