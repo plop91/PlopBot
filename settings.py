@@ -47,9 +47,25 @@ def init(args):
 
     # <json------------------------------------------------------------------------------------------------------------>
     global info_json
-    with open(args.json, 'r') as f:
-        info_json = json.load(f)
-        f.close()
+    try:
+        with open(args.json, 'r') as f:
+            info_json = json.load(f)
+            f.close()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"Configuration file not found at '{args.json}'. "
+            f"Please ensure the info.json file exists at the specified path."
+        )
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"Configuration file '{args.json}' contains invalid JSON: {e}. "
+            f"Please check the file for syntax errors."
+        )
+    except PermissionError:
+        raise PermissionError(
+            f"Cannot read configuration file '{args.json}': Permission denied. "
+            f"Please check file permissions."
+        )
     global token
     # Use environment variable for token if available, otherwise fallback to JSON
     token = os.environ.get('DISCORD_BOT_TOKEN', info_json.get("token"))
@@ -226,13 +242,18 @@ class SoundboardDBManager:
                 logger.error(f"Database error while verifying: {e}")
                 return
         try:
+            # Find files in soundboard directory
+            soundboard_files = set()
             for file in os.listdir("./soundboard"):
                 if file.endswith(".mp3"):
-                    for temp in db_files:
-                        if temp[0] == file:
-                            db_files.remove(temp)
+                    soundboard_files.add(file)
 
-            for file in db_files:
+            # Build list of database entries to remove (not in filesystem)
+            # Use list comprehension instead of modifying list during iteration
+            files_to_remove = [db_file for db_file in db_files if db_file[0] not in soundboard_files]
+
+            # Remove orphaned database entries
+            for file in files_to_remove:
                 self.remove_db_entry(file[1])
 
             for file in os.listdir("./soundboard"):

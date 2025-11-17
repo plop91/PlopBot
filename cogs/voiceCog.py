@@ -6,6 +6,8 @@ import os
 import time
 import json
 import asyncio
+import re
+from urllib.parse import quote, urlparse
 
 
 class Voices(commands.Cog):
@@ -28,9 +30,75 @@ class Voices(commands.Cog):
         """
         self.client = client
         # Get voice API URL from config, fallback to localhost
-        self.voice_api_url = settings.info_json.get("voice_api", {}).get("url", "http://localhost:8000")
+        raw_url = settings.info_json.get("voice_api", {}).get("url", "http://localhost:8000")
+
+        # Validate and sanitize the API URL
+        if not self._validate_api_url(raw_url):
+            settings.logger.error(f"Invalid voice API URL configured: {raw_url}. Using localhost fallback.")
+            self.voice_api_url = "http://localhost:8000"
+        else:
+            self.voice_api_url = raw_url.rstrip('/')
+
         # Request timeout in seconds to prevent DoS
         self.request_timeout = 30
+
+    def _validate_api_url(self, url: str) -> bool:
+        """
+        Validates the API URL to prevent SSRF attacks
+        :param url: URL to validate
+        :return: True if valid, False otherwise
+        """
+        try:
+            parsed = urlparse(url)
+            # Only allow http and https schemes
+            if parsed.scheme not in ['http', 'https']:
+                settings.logger.warning(f"Invalid URL scheme: {parsed.scheme}")
+                return False
+
+            # Ensure hostname is present
+            if not parsed.netloc:
+                settings.logger.warning("URL missing hostname")
+                return False
+
+            # Block localhost variations, internal IPs (for production security)
+            # Uncomment these checks in production:
+            # blocked_hosts = ['127.', '0.0.0.0', 'localhost', '10.', '172.16.', '192.168.', '169.254.']
+            # if any(parsed.netloc.startswith(blocked) for blocked in blocked_hosts):
+            #     settings.logger.warning(f"Blocked internal/localhost URL: {parsed.netloc}")
+            #     return False
+
+            return True
+        except Exception as e:
+            settings.logger.error(f"Error validating URL: {e}")
+            return False
+
+    def _sanitize_voice_name(self, voice_name: str) -> str:
+        """
+        Sanitizes voice name to prevent injection attacks
+        :param voice_name: Voice name to sanitize
+        :return: Sanitized voice name or None if invalid
+        """
+        # Only allow alphanumeric, underscore, and hyphen
+        if not re.match(r'^[a-zA-Z0-9_-]+$', voice_name):
+            return None
+        # Limit length
+        if len(voice_name) > 50:
+            return None
+        return voice_name
+
+    def _sanitize_uuid(self, uuid: str) -> str:
+        """
+        Sanitizes UUID to prevent injection attacks
+        :param uuid: UUID to sanitize
+        :return: Sanitized UUID or None if invalid
+        """
+        # UUID format validation
+        if not re.match(r'^[a-f0-9-]+$', uuid, re.IGNORECASE):
+            return None
+        # Limit length
+        if len(uuid) > 36:
+            return None
+        return uuid
 
     @commands.command(pass_context=True, aliases=['av'], brief='Adds a voice', help='Adds a voice')
     async def add_voice(self, ctx, voice_name: str):
@@ -39,12 +107,20 @@ class Voices(commands.Cog):
         :param ctx: context
         :param voice_name: voice name
         """
+        # Sanitize voice name to prevent injection
+        sanitized_name = self._sanitize_voice_name(voice_name)
+        if not sanitized_name:
+            await ctx.send(f'Invalid voice name. Use only alphanumeric characters, underscores, and hyphens.')
+            settings.logger.warning(f"Invalid voice name attempted by {ctx.author}: {voice_name}")
+            return
+
         # try to make a voice
-        r = requests.put(f'{self.voice_api_url}/new_voice?name={voice_name}', timeout=self.request_timeout)
+        # Use URL encoding for safety
+        r = requests.put(f'{self.voice_api_url}/new_voice?name={quote(sanitized_name)}', timeout=self.request_timeout)
         if r.status_code == 200:
-            await ctx.send(f'Voice {voice_name} added')
+            await ctx.send(f'Voice {sanitized_name} added')
         else:
-            await ctx.send(f'Failed to add voice {voice_name}')
+            await ctx.send(f'Failed to add voice {sanitized_name}')
 
         if ctx.message.attachments:
             # TODO: add the clips to the database
@@ -57,6 +133,13 @@ class Voices(commands.Cog):
         :param ctx: context
         :param voice_name: voice name
         """
+        # Sanitize voice name to prevent injection
+        sanitized_name = self._sanitize_voice_name(voice_name)
+        if not sanitized_name:
+            await ctx.send(f'Invalid voice name. Use only alphanumeric characters, underscores, and hyphens.')
+            settings.logger.warning(f"Invalid voice name attempted by {ctx.author}: {voice_name}")
+            return
+
         if not ctx.message.attachments:
             await ctx.send('No clip attached')
             return
@@ -71,13 +154,13 @@ class Voices(commands.Cog):
             # upload clip to server
             with open(f'temp/{f.filename}', 'rb') as file:
                 files = {'file': file}
-                # try to make a clip
-                r = requests.put(f'{self.voice_api_url}/new_clip?voice_name={voice_name}', files=files, timeout=self.request_timeout)
+                # try to make a clip - use URL encoding for safety
+                r = requests.put(f'{self.voice_api_url}/new_clip?voice_name={quote(sanitized_name)}', files=files, timeout=self.request_timeout)
 
             if r.status_code == 200:
-                await ctx.send(f'Clip {f.filename} added to voice {voice_name}')
+                await ctx.send(f'Clip {f.filename} added to voice {sanitized_name}')
             else:
-                await ctx.send(f'Failed to add clip {f.filename} to voice {voice_name}')
+                await ctx.send(f'Failed to add clip {f.filename} to voice {sanitized_name}')
 
     @commands.command(pass_context=True, aliases=['mc'], brief='Makes a clip', help='Makes a clip')
     async def make_clip(self, ctx, voice_name: str, *text: str):
@@ -87,8 +170,15 @@ class Voices(commands.Cog):
         :param voice_name: voice name
         :param text: text
         """
-        # create data
-        data = {'model': voice_name, 'text': ''.join(text), 'preset': "standard", "candidates": 1}
+        # Sanitize voice name to prevent injection
+        sanitized_name = self._sanitize_voice_name(voice_name)
+        if not sanitized_name:
+            await ctx.send(f'Invalid voice name. Use only alphanumeric characters, underscores, and hyphens.')
+            settings.logger.warning(f"Invalid voice name attempted by {ctx.author}: {voice_name}")
+            return
+
+        # create data - use sanitized name
+        data = {'model': sanitized_name, 'text': ''.join(text), 'preset': "standard", "candidates": 1}
         json_data = json.dumps(data)
 
         # make request
@@ -102,25 +192,37 @@ class Voices(commands.Cog):
             return
 
         # get uuid
-        uuid = r.json()["uuid"]
+        try:
+            uuid = r.json()["uuid"]
+        except (KeyError, json.JSONDecodeError) as e:
+            await ctx.send(f'Invalid response from voice API')
+            settings.logger.error(f"Invalid response from voice API: {e}")
+            return
+
+        # Sanitize UUID to prevent injection
+        sanitized_uuid = self._sanitize_uuid(uuid)
+        if not sanitized_uuid:
+            await ctx.send(f'Invalid UUID received from API')
+            settings.logger.error(f"Invalid UUID from API: {uuid}")
+            return
 
         # get start time
         start_time = time.time()
 
         while True:
-            r = requests.get(f'{self.voice_api_url}/get_clip?uid={uuid}&clip=0', timeout=self.request_timeout)
+            r = requests.get(f'{self.voice_api_url}/get_clip?uid={quote(sanitized_uuid)}&clip=0', timeout=self.request_timeout)
             # TODO: schedule a task to check every few seconds so the bot can do other things
             if r.status_code == 200:
                 # download clip
                 if not os.path.exists("voices"):
                     os.mkdir("voices")
-                with open(f'voices/{uuid}.wav', 'wb') as f:
+                with open(f'voices/{sanitized_uuid}.wav', 'wb') as f:
                     f.write(r.content)
-                await ctx.send(f'Clip ready', file=discord.File(f'voices/{uuid}.wav'))
+                await ctx.send(f'Clip ready', file=discord.File(f'voices/{sanitized_uuid}.wav'))
                 # TODO: fix this
                 # await ctx.author.voice.channel.connect()
                 # source = discord.PCMVolumeTransformer(
-                #     discord.FFmpegPCMAudio(source=f"{f'voices/{uuid}.wav'}"), volume=1.0)
+                #     discord.FFmpegPCMAudio(source=f"{f'voices/{sanitized_uuid}.wav'}"), volume=1.0)
                 # ctx.voice_client.play(source)
                 break
             if time.time() - start_time > 180:

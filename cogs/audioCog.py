@@ -141,8 +141,35 @@ class Audio(commands.Cog):
         :return:
         """
         settings.logger.info(f"cleaning youtube folder!")
-        for f in os.listdir("youtube"):
-            os.remove(os.path.join("youtube", f))
+        youtube_dir = "youtube"
+
+        if not os.path.exists(youtube_dir):
+            settings.logger.warning(f"YouTube directory '{youtube_dir}' does not exist, skipping cleanup")
+            return
+
+        if not os.path.isdir(youtube_dir):
+            settings.logger.warning(f"'{youtube_dir}' exists but is not a directory, skipping cleanup")
+            return
+
+        try:
+            files = os.listdir(youtube_dir)
+        except PermissionError:
+            settings.logger.error(f"Permission denied reading YouTube directory '{youtube_dir}'")
+            return
+        except OSError as e:
+            settings.logger.error(f"Error reading YouTube directory '{youtube_dir}': {e}")
+            return
+
+        for f in files:
+            file_path = os.path.join(youtube_dir, f)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    settings.logger.debug(f"Removed YouTube file: {f}")
+            except PermissionError:
+                settings.logger.error(f"Permission denied removing file '{file_path}'")
+            except OSError as e:
+                settings.logger.error(f"Error removing file '{file_path}': {e}")
 
     @commands.Cog.listener()
     async def on_ready(self):

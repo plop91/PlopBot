@@ -62,11 +62,24 @@ class OpenAIDatabaseManager:
         :raises: ConnectionError if the user cannot be added because the database is not connected
         :raises: Exception if the user cannot be added for any other reason
         """
-        # TODO: add error handling
-        sql = "INSERT INTO usernames (username, date_created) VALUES (%s, %s)"
-        val = (user, datetime.now())
-        self.my_cursor.execute(sql, val)
-        self.db.commit()
+        if not self.db or not self.my_cursor:
+            raise ConnectionError("Database not connected")
+
+        try:
+            sql = "INSERT INTO usernames (username, date_created) VALUES (%s, %s)"
+            val = (user, datetime.now())
+            self.my_cursor.execute(sql, val)
+            self.db.commit()
+        except mysql.connector.errors.IntegrityError:
+            raise ValueError(f"User {user} already exists")
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
+                self.connect()
+                # Retry once
+                self.my_cursor.execute(sql, val)
+                self.db.commit()
+            else:
+                raise ConnectionError(f"Database error: {e.errno}")
 
     def get_users(self):
         """
@@ -75,11 +88,23 @@ class OpenAIDatabaseManager:
         :raises: ConnectionError if the user cannot be added because the database is not connected
         :raises: Exception if the list of users cannot be retrieved for any other reason
         """
-        # TODO: add error handling
-        sql = "SELECT username FROM usernames"
-        self.my_cursor.execute(sql)
-        result = self.my_cursor.fetchall()
-        return result
+        if not self.db or not self.my_cursor:
+            raise ConnectionError("Database not connected")
+
+        try:
+            sql = "SELECT username FROM usernames"
+            self.my_cursor.execute(sql)
+            result = self.my_cursor.fetchall()
+            return [row[0] for row in result]
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
+                self.connect()
+                # Retry once
+                self.my_cursor.execute(sql)
+                result = self.my_cursor.fetchall()
+                return [row[0] for row in result]
+            else:
+                raise ConnectionError(f"Database error: {e.errno}")
 
     def remove_user(self, user):
         """
@@ -90,11 +115,26 @@ class OpenAIDatabaseManager:
         :raises: ConnectionError if the user cannot be added because the database is not connected
         :raises: Exception if the user cannot be removed for any other reason
         """
-        # TODO: add error handling
-        sql = "DELETE FROM usernames WHERE username = %s"
-        adr = (user,)
-        self.my_cursor.execute(sql, adr)
-        self.db.commit()
+        if not self.db or not self.my_cursor:
+            raise ConnectionError("Database not connected")
+
+        try:
+            sql = "DELETE FROM usernames WHERE username = %s"
+            adr = (user,)
+            self.my_cursor.execute(sql, adr)
+            if self.my_cursor.rowcount == 0:
+                raise ValueError(f"User {user} does not exist")
+            self.db.commit()
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
+                self.connect()
+                # Retry once
+                self.my_cursor.execute(sql, adr)
+                if self.my_cursor.rowcount == 0:
+                    raise ValueError(f"User {user} does not exist")
+                self.db.commit()
+            else:
+                raise ConnectionError(f"Database error: {e.errno}")
 
 
     # blacklist
@@ -107,11 +147,24 @@ class OpenAIDatabaseManager:
         :raises: ConnectionError if the blacklist cannot be added because the database is not connected
         :raises: Exception if the blacklist cannot be added for any other reason
         """
-        # TODO: add error handling
-        sql = "INSERT INTO blacklists (blacklist, date_created) VALUES (%s, %s)"
-        val = (blacklist, datetime.now())
-        self.my_cursor.execute(sql, val)
-        self.db.commit()
+        if not self.db or not self.my_cursor:
+            raise ConnectionError("Database not connected")
+
+        try:
+            sql = "INSERT INTO blacklists (blacklist, date_created) VALUES (%s, %s)"
+            val = (blacklist, datetime.now())
+            self.my_cursor.execute(sql, val)
+            self.db.commit()
+        except mysql.connector.errors.IntegrityError:
+            raise ValueError(f"Blacklist entry {blacklist} already exists")
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
+                self.connect()
+                # Retry once
+                self.my_cursor.execute(sql, val)
+                self.db.commit()
+            else:
+                raise ConnectionError(f"Database error: {e.errno}")
 
     def blacklisted(self, user):
         """
@@ -137,8 +190,23 @@ class OpenAIDatabaseManager:
         :raises: ConnectionError if the blacklist cannot be added because the database is not connected
         :raises: Exception if the list of blacklists cannot be retrieved for any other reason
         """
-        # TODO: add error handling
-        pass
+        if not self.db or not self.my_cursor:
+            raise ConnectionError("Database not connected")
+
+        try:
+            sql = "SELECT blacklist FROM blacklists"
+            self.my_cursor.execute(sql)
+            result = self.my_cursor.fetchall()
+            return [row[0] for row in result]
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
+                self.connect()
+                # Retry once
+                self.my_cursor.execute(sql)
+                result = self.my_cursor.fetchall()
+                return [row[0] for row in result]
+            else:
+                raise ConnectionError(f"Database error: {e.errno}")
 
     def remove_blacklist(self, blacklist):
         """
@@ -149,8 +217,26 @@ class OpenAIDatabaseManager:
         :raises: ConnectionError if the blacklist cannot be added because the database is not connected
         :raises: Exception if the blacklist cannot be removed for any other reason
         """
-        # TODO: add error handling
-        pass
+        if not self.db or not self.my_cursor:
+            raise ConnectionError("Database not connected")
+
+        try:
+            sql = "DELETE FROM blacklists WHERE blacklist = %s"
+            adr = (blacklist,)
+            self.my_cursor.execute(sql, adr)
+            if self.my_cursor.rowcount == 0:
+                raise ValueError(f"Blacklist entry {blacklist} does not exist")
+            self.db.commit()
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
+                self.connect()
+                # Retry once
+                self.my_cursor.execute(sql, adr)
+                if self.my_cursor.rowcount == 0:
+                    raise ValueError(f"Blacklist entry {blacklist} does not exist")
+                self.db.commit()
+            else:
+                raise ConnectionError(f"Database error: {e.errno}")
 
     # assistants
     def add_assistant(self, assistant):

@@ -415,18 +415,24 @@ class OpenAI(commands.Cog):
                 self.active_threads[guild] = {name: thread}
 
             thread_id = self.active_threads[guild][name].id
-            self.openai_client.beta.threads.messages.create(
+            # Wrap blocking message create call in asyncio.to_thread
+            await asyncio.to_thread(
+                self.openai_client.beta.threads.messages.create,
                 thread_id=thread_id,
                 role="user",
                 content=prompt
             )
-            run = self.openai_client.beta.threads.runs.create(
+            # Wrap blocking run create call in asyncio.to_thread
+            run = await asyncio.to_thread(
+                self.openai_client.beta.threads.runs.create,
                 thread_id=thread_id,
                 assistant_id=assistant.id
             )
             start_time = run.created_at
             while True:
-                run = self.openai_client.beta.threads.runs.retrieve(
+                # Wrap blocking OpenAI API call in asyncio.to_thread to prevent event loop blocking
+                run = await asyncio.to_thread(
+                    self.openai_client.beta.threads.runs.retrieve,
                     thread_id=thread_id,
                     run_id=run.id
                 )
@@ -435,7 +441,9 @@ class OpenAI(commands.Cog):
                 if current_time - start_time > 60:
                     # TODO: if the assistant times out, deduct from the user's usage, then cancel the run
                     await ctx.send("Assistant time out - cancelling")
-                    run = self.openai_client.beta.threads.runs.cancel(
+                    # Wrap blocking cancel call in asyncio.to_thread
+                    run = await asyncio.to_thread(
+                        self.openai_client.beta.threads.runs.cancel,
                         thread_id=thread_id,
                         run_id=run.id
                     )
@@ -470,7 +478,9 @@ class OpenAI(commands.Cog):
                     return
                 await asyncio.sleep(2)
 
-            messages = self.openai_client.beta.threads.messages.list(
+            # Wrap blocking messages list call in asyncio.to_thread
+            messages = await asyncio.to_thread(
+                self.openai_client.beta.threads.messages.list,
                 thread_id=thread_id
             )
 
@@ -481,7 +491,11 @@ class OpenAI(commands.Cog):
                         await ctx.send(line)
                 # retrieve image file
                 else:
-                    image_data = self.openai_client.files.content(content.image_file.file_id)
+                    # Wrap blocking file content call in asyncio.to_thread
+                    image_data = await asyncio.to_thread(
+                        self.openai_client.files.content,
+                        content.image_file.file_id
+                    )
                     image_data_bytes = image_data.read()
 
                     image_filename = "./my-image.png"
