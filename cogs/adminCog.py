@@ -3,6 +3,7 @@ This cog contains the admin commands for the bot.
 """
 from discord.ext import commands
 import settings
+import subprocess
 
 
 class Admin(commands.Cog):
@@ -32,7 +33,34 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
-        pass
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        # Fallback to old string-based check if admin_ids not configured
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
+        if is_admin:
+            try:
+                # Get the current git commit hash
+                result = subprocess.run(
+                    ['git', 'rev-parse', '--short', 'HEAD'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    commit_hash = result.stdout.strip()
+                    await ctx.send(f"Current commit hash: `{commit_hash}`")
+                else:
+                    await ctx.send("Failed to get git commit hash")
+            except subprocess.TimeoutExpired:
+                await ctx.send("Git command timed out")
+            except Exception as e:
+                settings.logger.error(f"Error getting git hash: {e}")
+                await ctx.send("Error retrieving git commit hash")
+        else:
+            await ctx.send("You do not have permission to run this command")
+            settings.logger.warning(f"Unauthorized hash command attempt by {ctx.author}")
 
     @commands.command(brief="Admin only command: provide current version")
     async def version(self, ctx):
@@ -41,7 +69,33 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
-        pass
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
+        if is_admin:
+            try:
+                # Try to get version from git tag
+                result = subprocess.run(
+                    ['git', 'describe', '--tags', '--always'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    version = result.stdout.strip()
+                    await ctx.send(f"Bot version: `{version}`")
+                else:
+                    await ctx.send("Version information not available")
+            except subprocess.TimeoutExpired:
+                await ctx.send("Git command timed out")
+            except Exception as e:
+                settings.logger.error(f"Error getting version: {e}")
+                await ctx.send("Error retrieving version information")
+        else:
+            await ctx.send("You do not have permission to run this command")
+            settings.logger.warning(f"Unauthorized version command attempt by {ctx.author}")
 
     @commands.command(brief="Admin only command: Turn the bot off.")
     async def kill(self, ctx):
@@ -50,18 +104,22 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
         # try to gracefully shut down the bot
         # noinspection PyBroadException
         try:
-            if str(ctx.author) in settings.info_json["admins"]:
+            if is_admin:
                 settings.logger.info(f"kill from {ctx.author}!")
                 if str(ctx.message.channel) in settings.info_json["command_channels"]:
-                    await self.client.logout()
+                    await self.client.close()
             else:
-                await ctx.channel.send(ctx.author)
-                await ctx.channel.send(settings.info_json["admins"])
-                await ctx.channel.send("you are not an admin")
-        # if the bot fails to log out kill it
+                await ctx.channel.send("You do not have permission to run this command")
+                settings.logger.warning(f"Unauthorized kill attempt by {ctx.author}")
+        # if the bot fails to close kill it
         except Exception:
             exit(1)
 
@@ -69,22 +127,28 @@ class Admin(commands.Cog):
     async def restart(self, ctx):
         """
         Preforms a restart of the bot
+        Note: This command closes the bot. The bot should be managed by a process manager
+        (like systemd or docker) that will automatically restart it.
         :arg ctx: context of the command
         :return: None
         """
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
         # try to gracefully shut down the bot
         # noinspection PyBroadException
         try:
-            if str(ctx.author) in settings.info_json["admins"]:
+            if is_admin:
                 settings.logger.info(f"restart from {ctx.author}!")
                 if str(ctx.message.channel) in settings.info_json["command_channels"]:
-                    await self.client.logout()
-                    await self.client.start(settings.info_json["token"])
+                    await ctx.send("Restarting bot... (requires process manager)")
+                    await self.client.close()
             else:
-                await ctx.channel.send(ctx.author)
-                await ctx.channel.send(settings.info_json["admins"])
-                await ctx.channel.send("you are not an admin")
-        # if the bot fails to log out kill it
+                await ctx.channel.send("You do not have permission to run this command")
+                settings.logger.warning(f"Unauthorized restart attempt by {ctx.author}")
+        # if the bot fails to close kill it
         except Exception:
             exit(1)
 

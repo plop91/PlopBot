@@ -29,9 +29,31 @@ class PlopBot(commands.Bot):
         Setup hook for the bot, loads all cogs.
         :return: None
         """
-        for f in os.listdir('./cogs'):
+        cogs_dir = './cogs'
+        if not os.path.exists(cogs_dir):
+            settings.logger.error(f"Cogs directory '{cogs_dir}' does not exist. Cannot load cogs.")
+            return
+
+        if not os.path.isdir(cogs_dir):
+            settings.logger.error(f"'{cogs_dir}' exists but is not a directory. Cannot load cogs.")
+            return
+
+        try:
+            cog_files = os.listdir(cogs_dir)
+        except PermissionError:
+            settings.logger.error(f"Permission denied reading cogs directory '{cogs_dir}'")
+            return
+        except OSError as e:
+            settings.logger.error(f"Error reading cogs directory '{cogs_dir}': {e}")
+            return
+
+        for f in cog_files:
             if f.endswith('.py'):
-                await self.load_extension(f'cogs.{f[:-3]}')
+                try:
+                    await self.load_extension(f'cogs.{f[:-3]}')
+                    settings.logger.info(f"Loaded cog: {f[:-3]}")
+                except Exception as e:
+                    settings.logger.error(f"Failed to load cog {f[:-3]}: {e}")
 
     # @commands.command(brief="Admin only command: Load a Cog.")
     # async def load(self, ctx, extension):

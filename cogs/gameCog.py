@@ -75,7 +75,11 @@ class Game(commands.Cog):
         :return: None
         """
 
-        iteams = int(teams)
+        try:
+            iteams = int(teams)
+        except ValueError:
+            await ctx.send("Invalid number of teams")
+            return
 
         # get current voice channel of author
         voice = ctx.author.voice.channel
@@ -83,21 +87,40 @@ class Game(commands.Cog):
         if voice is not None:
             # filter bots from list of members in channel
             people = list(filter(lambda x: (not x.bot), voice.members))
-            settings.logger.info(f"{iteams} teams with members: ".join(m.name for m in people))
+            members_str = ", ".join(m.name for m in people)
+            settings.logger.info(f"{iteams} teams with members: {members_str}")
 
             if iteams < 2:
                 iteams = 2
+
 
             if len(people) < iteams:
                 settings.logger.info(f"Not enough players for {iteams} teams.")
                 await ctx.send(f"Not enough players for {iteams} teams.")
             else:
+                # Calculate players per team and extra players
+                players_per_team = len(people) // iteams
+                extra_players = len(people) % iteams
+
+                if players_per_team == 0:
+                    await ctx.send(f"Not enough players for {iteams} teams. Need at least {iteams} players.")
+                    return
+
                 for x in range(1, iteams + 1):
-                    players = random.sample(people, int(len(people) / iteams))
-                    for p in players:
-                        people.remove(p)
-                    await ctx.send(f"Team {x}: " + ", ".join(m.name for m in players))
-                    iteams -= 1
+                    # Give extra players to first teams
+                    team_size = players_per_team + (1 if x <= extra_players else 0)
+
+                    if len(people) >= team_size:
+                        players = random.sample(people, team_size)
+                        for p in players:
+                            people.remove(p)
+                        await ctx.send(f"Team {x}: " + ", ".join(m.name for m in players))
+                    else:
+                        # Assign remaining players to last team
+                        if people:
+                            await ctx.send(f"Team {x}: " + ", ".join(m.name for m in people))
+                            people.clear()
+                        break
         else:
             settings.logger.info(f"Could not find voice channel of member.")
             await ctx.send("Don't think you're in a voice channel")
@@ -113,8 +136,13 @@ class Game(commands.Cog):
         :arg times: number of times to roll
         :return: None
         """
-        isides = int(sides)
-        itimes = int(times)
+        try:
+            isides = int(sides)
+            itimes = int(times)
+        except ValueError:
+            await ctx.send("Invalid number for sides or times")
+            return
+
         settings.logger.info(f"roll from {ctx.author}: {isides} sides")
         if isides > 1 and itimes > 0:
             await ctx.message.channel.send(

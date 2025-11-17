@@ -2,6 +2,8 @@
 This cog is used to play audio from YouTube and the soundboard. It also has the ability to download mp3's from
 YouTube and add them to the soundboard. It also has the ability to play TTS audio.
 """
+from asyncio import sleep
+
 from discord.ext import commands, tasks
 from discord.errors import ClientException
 from discord.utils import get
@@ -15,6 +17,7 @@ import ffmpeg
 import shutil
 import settings
 import traceback
+import re
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -95,6 +98,42 @@ class Audio(commands.Cog):
 
         self.ghost_message = {}
 
+        # URL validation pattern for YouTube and common video sites
+        self.url_pattern = re.compile(
+            r'^https?://'  # http:// or https://
+            r'(?:(?:www|m)\.)?'  # optional www. or m.
+            r'(?:youtube\.com|youtu\.be|twitch\.tv|soundcloud\.com|vimeo\.com|dailymotion\.com)'  # allowed domains
+            r'[^\s]*$',  # rest of URL
+            re.IGNORECASE
+        )
+
+    def validate_url(self, url):
+        """
+        Validates that a URL is from an allowed domain
+        :param url: URL to validate
+        :return: True if valid, False otherwise
+        """
+        if not url or not isinstance(url, str):
+            return False
+        return bool(self.url_pattern.match(url.strip()))
+
+    def sanitize_filename(self, filename):
+        """
+        Sanitizes a filename to prevent path traversal and other attacks
+        :param filename: Filename to sanitize
+        :return: Sanitized filename or None if invalid
+        """
+        if not filename or not isinstance(filename, str):
+            return None
+        # Remove any path components
+        filename = os.path.basename(filename)
+        # Remove any dangerous characters
+        filename = re.sub(r'[^\w\s\-.]', '', filename)
+        # Prevent empty or hidden files
+        if not filename or filename.startswith('.'):
+            return None
+        return filename.strip().lower()
+
     @staticmethod
     def clean_youtube():
         """
@@ -102,8 +141,35 @@ class Audio(commands.Cog):
         :return:
         """
         settings.logger.info(f"cleaning youtube folder!")
-        for f in os.listdir("youtube"):
-            os.remove(os.path.join("youtube", f))
+        youtube_dir = "youtube"
+
+        if not os.path.exists(youtube_dir):
+            settings.logger.warning(f"YouTube directory '{youtube_dir}' does not exist, skipping cleanup")
+            return
+
+        if not os.path.isdir(youtube_dir):
+            settings.logger.warning(f"'{youtube_dir}' exists but is not a directory, skipping cleanup")
+            return
+
+        try:
+            files = os.listdir(youtube_dir)
+        except PermissionError:
+            settings.logger.error(f"Permission denied reading YouTube directory '{youtube_dir}'")
+            return
+        except OSError as e:
+            settings.logger.error(f"Error reading YouTube directory '{youtube_dir}': {e}")
+            return
+
+        for f in files:
+            file_path = os.path.join(youtube_dir, f)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    settings.logger.debug(f"Removed YouTube file: {f}")
+            except PermissionError:
+                settings.logger.error(f"Permission denied removing file '{file_path}'")
+            except OSError as e:
+                settings.logger.error(f"Error removing file '{file_path}': {e}")
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -153,13 +219,29 @@ class Audio(commands.Cog):
                                                        "for admin approval. Notify an admin to resolve.")
                         # If this is a new filename
                         else:
-                            filename = attachment.filename.lower().replace(' ', '').replace('_', '')
+                            # Sanitize filename to prevent path traversal attacks
+                            sanitized = self.sanitize_filename(attachment.filename)
+                            if not sanitized or not sanitized.endswith('.mp3'):
+                                await message.channel.send("Invalid filename. Only MP3 files with safe names are allowed.")
+                                continue
+
+                            filename = sanitized
+
+                            # Validate the full path to prevent directory traversal
+                            raw_path = os.path.join("./soundboard/raw", filename)
+                            if not os.path.abspath(raw_path).startswith(os.path.abspath("./soundboard/raw")):
+                                await message.channel.send("Invalid filename - path traversal detected")
+                                settings.logger.warning(f"Path traversal attempt by {message.author}: {attachment.filename}")
+                                continue
+
                             settings.logger.info(f"{message.author} added a mp3 file: {attachment}")
                             await message.channel.send(
                                 f"The audio is being downloaded and should be ready shortly the name of the clip will "
                                 f"be: {filename.replace('.mp3', '')}")
-                            await attachment.save(f"./soundboard/raw/{filename}")
-                            audio_json = ffmpeg.probe(f"./soundboard/raw/{filename}")
+                            await attachment.save(raw_path)
+                            # Run ffmpeg.probe in executor to avoid blocking event loop
+                            loop = asyncio.get_event_loop()
+                            audio_json = await loop.run_in_executor(None, ffmpeg.probe, raw_path)
 
                             # If the clip is too long it needs to be reviewed
                             if float(audio_json['streams'][0]['duration']) >= 60:
@@ -167,10 +249,17 @@ class Audio(commands.Cog):
                                                            "reviewed before it can be played.")
                             else:
                                 try:
-                                    shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
+                                    # Validate destination path as well
+                                    dest_path = os.path.join("./soundboard", filename)
+                                    if not os.path.abspath(dest_path).startswith(os.path.abspath("./soundboard")):
+                                        await message.channel.send("Invalid filename - path traversal detected")
+                                        settings.logger.warning(f"Path traversal attempt in destination by {message.author}")
+                                        continue
+
+                                    shutil.copy(raw_path, dest_path)
                                     settings.soundboard_db.add_db_entry(filename.lower(),
                                                                         filename.replace(".mp3", "").lower())
-                                    self.sounds[filename.replace(".mp3", "").lower()] = f"./soundboard/{filename}"
+                                    self.sounds[filename.replace(".mp3", "").lower()] = dest_path
                                 except ValueError:
                                     await message.channel.send("A file with that name already existed in the database, "
                                                                "contact an admin!")
@@ -180,8 +269,8 @@ class Audio(commands.Cog):
             else:
                 # divide message as though it was a webhook command
                 data = message.content.split(':')
-                # check if it has a valid source
-                if data[0] == "www.sodersjerna.com":
+                # check if it has a valid source AND sufficient parts to prevent IndexError
+                if len(data) >= 4 and data[0] == "www.sodersjerna.com":
                     member = discord.utils.get(message.guild.members, name=data[1])
                     if member is not None and member.voice is not None:
                         for client in self.client.voice_clients:
@@ -238,14 +327,16 @@ class Audio(commands.Cog):
                 f = filename.replace("soundboard/", "").replace(".mp3", "")
 
                 embed_var = discord.Embed(title="Play Command",
-                                          description=f"{text_channel.author} played a random clip: {f}",
+                                          description=f"Playing random clip: {f}",
                                           color=0xffff00)
             else:
                 embed_var = discord.Embed(title="Play Command",
-                                          description=f"{text_channel.author} played: {fn}",
+                                          description=f"Playing: {fn}",
                                           color=0xffff00)
 
-            self.ghost_message[text_channel.guild.id] = await text_channel.channel.send(embed=embed_var)
+            # text_channel could be a Context object or a Channel object
+            channel = text_channel.channel if hasattr(text_channel, 'channel') else text_channel
+            self.ghost_message[text_channel.guild.id] = await channel.send(embed=embed_var)
 
         except AttributeError:
             settings.logger.info(f"Attribute Error: {traceback.format_exc()}")
@@ -273,14 +364,35 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"play from {ctx.author} :{filename}")
         if ctx.author not in settings.info_json["blacklist"]:
+            # Sanitize filename if provided
+            if filename is not None:
+                sanitized = self.sanitize_filename(filename)
+                if not sanitized:
+                    await ctx.send("Invalid filename provided.")
+                    await ctx.message.delete()
+                    return
+                filename = sanitized
+
             if filename is None:
                 embed_var = discord.Embed(title="Soundboard files",
-                                          description="type '.play ' followed by a name to play "
+                                          description="type '.play ' or '.p' followed by a name to play "
                                                       "file", color=0x00ff00)
                 s = ""
+                field_index = 0
                 for file in self.sounds.keys():
-                    if len(s) + len(file) >= 1024:
+                    settings.logger.info(f"DEBUG: field_index: {field_index}")
+                    if len(s) + len(file) >= 1024 and field_index > 3:
+                        settings.logger.info(f"DEBUG: SENDING MESSAGE")
+                        await ctx.channel.send(embed=embed_var)
+                        field_index = 0
+                        embed_var = discord.Embed(title="Soundboard files",
+                                                  description="type '.play ' or '.p' followed by a name to play "
+                                                              "file", color=0x00ff00)
+                        s = ""
+
+                    elif len(s) + len(file) >= 1024:
                         embed_var.add_field(name="play from a filename:", value=s, inline=False)
+                        field_index += 1
                         s = ""
                     s += file + ", "
 
@@ -288,9 +400,10 @@ class Audio(commands.Cog):
 
                 embed_var.add_field(name="play a random file:", value="random", inline=False)
 
+                settings.logger.info(f"DEBUG: SENDING REAL MESSAGE")
                 await ctx.channel.send(embed=embed_var)
-                await ctx.message.delete()
 
+                await ctx.message.delete()
                 return
 
             await self.play_clip(ctx, ctx.voice_client, filename)
@@ -311,9 +424,20 @@ class Audio(commands.Cog):
         :return: None
         """
         settings.logger.info(f"youtube from {ctx.author} :{url}")
+
+        # Validate URL before processing
+        if not self.validate_url(url):
+            await ctx.send("Invalid URL. Only YouTube, Twitch, SoundCloud, Vimeo, and Dailymotion URLs are allowed.")
+            await ctx.message.delete()
+            return
+
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.client.loop, volume=self.volume)
-            ctx.voice_client.play(player)
+            try:
+                player = await YTDLSource.from_url(url, loop=self.client.loop, volume=self.volume)
+                ctx.voice_client.play(player)
+            except Exception as e:
+                settings.logger.error(f"Error playing YouTube URL: {e}")
+                await ctx.send("Failed to play the requested URL.")
         await ctx.message.delete()
 
     @commands.command(pass_context=True,
@@ -327,9 +451,19 @@ class Audio(commands.Cog):
         :arg url: url of the YouTube video to play
         :return: None
         """
+        # Validate URL before processing
+        if not self.validate_url(url):
+            await ctx.send("Invalid URL. Only YouTube, Twitch, SoundCloud, Vimeo, and Dailymotion URLs are allowed.")
+            await ctx.message.delete()
+            return
+
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True, volume=self.volume)
-            ctx.voice_client.play(player)
+            try:
+                player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True, volume=self.volume)
+                ctx.voice_client.play(player)
+            except Exception as e:
+                settings.logger.error(f"Error streaming URL: {e}")
+                await ctx.send("Failed to stream the requested URL.")
         await ctx.message.delete()
 
     @commands.command(pass_context=True,
@@ -458,8 +592,19 @@ class Audio(commands.Cog):
         :arg sound: sound to return
         :return: None
         """
-        if os.path.isfile(os.path.join("soundboard", sound)):
-            await ctx.channel.send(sound, file=discord.File(sound + ".mp3", os.path.join("soundboard", sound)))
+        # Validate filename to prevent path traversal
+        if '..' in sound or sound.startswith('/') or sound.startswith('\\'):
+            await ctx.channel.send("Invalid filename")
+            return
+
+        filepath = os.path.join("soundboard", sound)
+        # Ensure the resolved path is within the soundboard directory
+        if not os.path.abspath(filepath).startswith(os.path.abspath("soundboard")):
+            await ctx.channel.send("Invalid filename")
+            return
+
+        if os.path.isfile(filepath):
+            await ctx.channel.send(sound, file=discord.File(filepath))
 
     @commands.command(aliases=['SAY'],
                       brief="",
@@ -474,8 +619,32 @@ class Audio(commands.Cog):
         """
         settings.logger.info(f"say from {ctx.author} text:{text}")
         text = text.strip().lower()
-        gTTS(text).save(os.path.join("soundboard", tts_file + '.mp3'))
-        await self.play_clip(ctx, ctx.voice_client, tts_file)
+
+        # Limit TTS text length to prevent abuse
+        MAX_TTS_LENGTH = 500
+        if len(text) > MAX_TTS_LENGTH:
+            await ctx.send(f"Text too long. Max {MAX_TTS_LENGTH} characters allowed")
+            return
+
+        # Sanitize tts_file parameter to prevent path traversal
+        sanitized_tts_file = self.sanitize_filename(tts_file)
+        if not sanitized_tts_file:
+            await ctx.send("Invalid filename")
+            return
+
+        # Remove .mp3 extension if user provided it (we'll add it)
+        if sanitized_tts_file.endswith('.mp3'):
+            sanitized_tts_file = sanitized_tts_file[:-4]
+
+        # Validate the full path
+        filepath = os.path.join("soundboard", sanitized_tts_file + '.mp3')
+        if not os.path.abspath(filepath).startswith(os.path.abspath("soundboard")):
+            await ctx.send("Invalid filename - path traversal detected")
+            settings.logger.warning(f"Path traversal attempt in TTS by {ctx.author}: {tts_file}")
+            return
+
+        gTTS(text).save(filepath)
+        await self.play_clip(ctx, ctx.voice_client, sanitized_tts_file)
         await ctx.message.delete()
 
     @play.before_invoke

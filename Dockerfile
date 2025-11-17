@@ -7,7 +7,7 @@ RUN git clone https://github.com/plop91/PlopBot.git
 # Set working dir to the git repo
 WORKDIR /usr/src/app/PlopBot/
 # Set branch to pull from
-ARG branch=devel
+ARG branch=ian-nightly
 # fetch branchs
 RUN git fetch
 # Checkout branch

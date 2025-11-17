@@ -23,10 +23,19 @@ class Twitter(commands.Cog):
         """
         self.client = client
 
-        self.auth = OAuthHandler(settings.info_json["twitter"]["apikey"], settings.info_json["twitter"]["apisecret"])
-        self.auth.set_access_token(settings.info_json["twitter"]["accesstoken"],
-                                   settings.info_json["twitter"]["accesstokensecret"])
-        self.auth_api = API(self.auth)
+        # Use environment variables for Twitter credentials with JSON fallback
+        api_key = os.environ.get('TWITTER_API_KEY', settings.info_json.get("twitter", {}).get("apikey"))
+        api_secret = os.environ.get('TWITTER_API_SECRET', settings.info_json.get("twitter", {}).get("apisecret"))
+        access_token = os.environ.get('TWITTER_ACCESS_TOKEN', settings.info_json.get("twitter", {}).get("accesstoken"))
+        access_secret = os.environ.get('TWITTER_ACCESS_SECRET', settings.info_json.get("twitter", {}).get("accesstokensecret"))
+
+        if not all([api_key, api_secret, access_token, access_secret]):
+            settings.logger.warning("Twitter credentials not fully configured in environment variables or config file")
+            self.auth_api = None
+        else:
+            self.auth = OAuthHandler(api_key, api_secret)
+            self.auth.set_access_token(access_token, access_secret)
+            self.auth_api = API(self.auth)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -43,6 +52,10 @@ class Twitter(commands.Cog):
         :param ctx: Context of the command
         :return: None
         """
+        if not self.auth_api:
+            await ctx.send("Twitter API not configured")
+            return
+
         filename = "factbot.jpg"
         settings.logger.info(f"factbot : {ctx.author}")
         await self.get_last_tweet_image("@factbot1", save_as=filename)
@@ -64,24 +77,30 @@ class Twitter(commands.Cog):
         :param save_as: filename to save the image as
         :return: None
         """
-        tweets = self.auth_api.user_timeline(screen_name=username, count=1, include_rts=False,
-                                             exclude_replies=True)
-        tmp = []
-        tweets_for_csv = [tweet.text for tweet in tweets]  # CSV file created
-        for j in tweets_for_csv:
-            # Appending tweets to the empty array tmp
-            tmp.append(j)
-        print(tmp)
-        media_files = set()
-        for status in tweets:
-            media = status.entities.get('media', [])
-            if len(media) > 0:
-                media_files.add(media[0]['media_url'])
-        for media_file in media_files:
-            if save_as.endswith(".jpg") or save_as.endswith(".png"):
-                wget.download(media_file, save_as)
-            else:
-                wget.download(media_file, "image.jpg")
+        try:
+            tweets = self.auth_api.user_timeline(screen_name=username, count=1, include_rts=False,
+                                                 exclude_replies=True)
+            tmp = []
+            tweets_for_csv = [tweet.text for tweet in tweets]  # CSV file created
+            for j in tweets_for_csv:
+                # Appending tweets to the empty array tmp
+                tmp.append(j)
+            settings.logger.debug(f"Tweet data: {tmp}")
+            media_files = set()
+            for status in tweets:
+                media = status.entities.get('media', [])
+                if len(media) > 0:
+                    media_files.add(media[0]['media_url'])
+            for media_file in media_files:
+                try:
+                    if save_as.endswith(".jpg") or save_as.endswith(".png"):
+                        wget.download(media_file, save_as)
+                    else:
+                        wget.download(media_file, "image.jpg")
+                except Exception as e:
+                    settings.logger.error(f"Download failed: {e}")
+        except Exception as e:
+            settings.logger.error(f"Twitter API error: {e}")
 
 
 async def setup(client):

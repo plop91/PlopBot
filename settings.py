@@ -47,11 +47,30 @@ def init(args):
 
     # <json------------------------------------------------------------------------------------------------------------>
     global info_json
-    with open(args.json, 'r') as f:
-        info_json = json.load(f)
-        f.close()
+    try:
+        with open(args.json, 'r') as f:
+            info_json = json.load(f)
+            f.close()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"Configuration file not found at '{args.json}'. "
+            f"Please ensure the info.json file exists at the specified path."
+        )
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"Configuration file '{args.json}' contains invalid JSON: {e}. "
+            f"Please check the file for syntax errors."
+        )
+    except PermissionError:
+        raise PermissionError(
+            f"Cannot read configuration file '{args.json}': Permission denied. "
+            f"Please check file permissions."
+        )
     global token
-    token = info_json["token"]
+    # Use environment variable for token if available, otherwise fallback to JSON
+    token = os.environ.get('DISCORD_BOT_TOKEN', info_json.get("token"))
+    if not token:
+        raise ValueError("Discord bot token not found in environment variables or config file")
     # <json------------------------------------------------------------------------------------------------------------>
 
     # <soundboard_db--------------------------------------------------------------------------------------------------->
@@ -65,17 +84,18 @@ def init(args):
     if args.db_username is None:
         db_username = info_json['soundboard_database']['username']
     else:
-        db_username = args.db_host
+        db_username = args.db_username
 
     if args.db_password is None:
-        db_password = info_json['soundboard_database']['password']
+        # Use environment variable for DB password if available, otherwise fallback to JSON
+        db_password = os.environ.get('DB_PASSWORD', info_json['soundboard_database']['password'])
     else:
-        db_password = args.db_host
+        db_password = args.db_password
 
     if args.db_name is None:
         db_name = info_json['soundboard_database']['database']
     else:
-        db_name = args.db_host
+        db_name = args.db_name
 
     soundboard_db = SoundboardDBManager(db_host=host, db_username=db_username, db_password=db_password,
                                         database_name=db_name)
@@ -136,13 +156,12 @@ class SoundboardDBManager:
                     self.my_cursor.execute(sql, val)
                     self.db.commit()
                     logger.info(f"adding sound to db filename:{filename}  name:{name}")
-                except Exception as e:
-                    logger.warning(f"unknown exception while adding to db!")
-                    logger.warning(e)
-
-        except Exception as e:
-            logger.warning("unknown exception while adding to db!")
-            logger.warning(e)
+                except mysql.connector.Error as retry_error:
+                    logger.error(f"Database error during retry: {retry_error}")
+                    raise
+            else:
+                logger.error(f"Database error: {e}")
+                raise
 
     def remove_db_entry(self, filename: str):
         """Removes database entry for the given filename"""
@@ -166,16 +185,12 @@ class SoundboardDBManager:
                     self.db.commit()
                     logger.info(f"removed sound from db filename:{filename}")
 
-                except Exception as e:
-                    logger.warning(f"unknown exception while adding to db!")
-                    logger.warning(e)
+                except mysql.connector.Error as retry_error:
+                    logger.error(f"Database error during retry while removing: {retry_error}")
+                    raise
             else:
-                logger.warning(f"unknown exception while adding to db!")
-                logger.warning(e)
-
-        except Exception as e:
-            logger.warning("unknown exception while removing from db!")
-            logger.warning(e)
+                logger.error(f"Database error while removing: {e}")
+                raise
 
     def list_db_files(self):
         """Returns a list of database entries"""
@@ -197,17 +212,12 @@ class SoundboardDBManager:
                     my_result = self.my_cursor.fetchall()
                     return my_result
 
-                except Exception as e:
-                    logger.warning(f"List_db_file inner unknown exception while listing db!")
-                    logger.warning(e)
-
+                except mysql.connector.Error as retry_error:
+                    logger.error(f"Database error during retry while listing: {retry_error}")
+                    raise
             else:
-                logger.warning(f"List_db_file unknown my sql exception while listing db!")
-                logger.warning(e)
-
-        except Exception as e:
-            logger.warning("List_db_file unknown exception while listing db!")
-            logger.warning(e)
+                logger.error(f"Database error while listing: {e}")
+                raise
 
     def verify_db(self):
         """Checks database against files on server and manages database accordingly
@@ -225,24 +235,25 @@ class SoundboardDBManager:
                     self.connect()
                     db_files = self.list_db_files()
 
-                except Exception as e:
-                    logger.warning(f"unknown exception while adding to db!")
-                    logger.warning(e)
+                except mysql.connector.Error as retry_error:
+                    logger.error(f"Database error during retry while verifying: {retry_error}")
+                    return
             else:
-                logger.warning(f"unknown exception while verifying db!")
-                logger.warning(e)
-
-        except Exception as e:
-            logger.warning(f"unknown exception while verifying db!")
-            logger.warning(e)
+                logger.error(f"Database error while verifying: {e}")
+                return
         try:
+            # Find files in soundboard directory
+            soundboard_files = set()
             for file in os.listdir("./soundboard"):
                 if file.endswith(".mp3"):
-                    for temp in db_files:
-                        if temp[0] == file:
-                            db_files.remove(temp)
+                    soundboard_files.add(file)
 
-            for file in db_files:
+            # Build list of database entries to remove (not in filesystem)
+            # Use list comprehension instead of modifying list during iteration
+            files_to_remove = [db_file for db_file in db_files if db_file[0] not in soundboard_files]
+
+            # Remove orphaned database entries
+            for file in files_to_remove:
                 self.remove_db_entry(file[1])
 
             for file in os.listdir("./soundboard"):
@@ -254,9 +265,10 @@ class SoundboardDBManager:
                             self.add_db_entry(file.lower(), file.replace(".mp3", "").lower())
                         except ValueError:
                             continue
-        except Exception as e:
-            logger.warning(f"unknown exception while verifying db!")
-            logger.warning(e)
+        except OSError as e:
+            logger.error(f"File system error while verifying db: {e}")
+        except mysql.connector.Error as e:
+            logger.error(f"Database error while verifying db: {e}")
 
 
 def add_to_json(filename, json_data, tag, data):

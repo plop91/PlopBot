@@ -6,7 +6,7 @@ import time
 import discord
 import settings
 from discord.ext import commands
-from openai import OpenAI as Oai
+from openai import OpenAI as Oai, BadRequestError
 import wget
 import os
 import textwrap
@@ -14,55 +14,35 @@ from PIL import Image
 import json
 import asyncio
 
-import mysql.connector
-from mysql.connector import errorcode
+from db.openai_database_manager import OpenAIDatabaseManager
 
 global logger
 
-
-class OpenAIDatabaseManager:
-    """
-    This class is for managing the openai database
-    """
-
-    def __init__(self, db_host, db_username, db_password, database_name):
-        """
-        Constructor for the openai database manager
-        :param db_host: Database host
-        :param db_username: Database username
-        :param db_password: Database password
-        :param database_name: Database name
-        """
-        self.db = None
-        self.my_cursor = None
-
-        self.db_host = db_host
-        self.db_username = db_username
-        self.db_password = db_password
-        self.database_name = database_name
-
-        self.connect()
-
-    def connect(self):
-        """Connects to the database"""
-        try:
-            self.db = mysql.connector.connect(
-                host=self.db_host,
-                user=self.db_username,
-                password=self.db_password,
-                database=self.database_name
-            )
-            self.my_cursor = self.db.cursor()
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                settings.logger.warning("Soundboard user name or password is Bad")
-            elif e.errno == errorcode.ER_BAD_DB_ERROR:
-                settings.logger.warning("Database does not exist")
-            else:
-                settings.logger.warning(e)
+BLACKLIST_FILE = "openai_blacklist.json"
 
 
-blacklist = []
+def load_blacklist():
+    """Load blacklist from file"""
+    try:
+        if os.path.exists(BLACKLIST_FILE):
+            with open(BLACKLIST_FILE, 'r') as f:
+                return json.load(f)
+        return []
+    except Exception as e:
+        settings.logger.error(f"Error loading blacklist: {e}")
+        return []
+
+
+def save_blacklist(blacklist_data):
+    """Save blacklist to file"""
+    try:
+        with open(BLACKLIST_FILE, 'w') as f:
+            json.dump(blacklist_data, f, indent=4)
+    except Exception as e:
+        settings.logger.error(f"Error saving blacklist: {e}")
+
+
+blacklist = load_blacklist()
 
 
 def blacklisted(user):
@@ -85,9 +65,23 @@ class OpenAI(commands.Cog):
         :param client: Client object
         """
         self.client = client
-        self.api_key = settings.info_json["openai"]["apikey"]
-        # openai.api_key = self.api_key
-        self.openai_client = Oai(api_key=self.api_key)
+        # Use environment variable for OpenAI API key if available, otherwise fallback to JSON
+        self.api_key = os.environ.get('OPENAI_API_KEY', settings.info_json.get("openai", {}).get("apikey"))
+        if not self.api_key:
+            settings.logger.warning("OpenAI API key not found in environment variables or config file")
+        self.openai_client = Oai(api_key=self.api_key) if self.api_key else None
+
+        # self.db_manager = OpenAIDatabaseManager(
+        #     settings.info_json["openai"]["db_host"],
+        #     settings.info_json["openai"]["db_username"],
+        #     settings.info_json["openai"]["db_password"],
+        #     settings.info_json["openai"]["database_name"]
+        # )
+        #
+        # try:
+        #     self.db_manager.connect()
+        # except Exception as e:
+        #     settings.logger.warning(f"Error connecting to openai database: {e}")
 
         self.active_assistants = {}
         self.active_threads = {}
@@ -102,6 +96,7 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["genimg", "genimage", "gen_image"],
                       brief="generate an image from a prompt using openai")
+    @commands.cooldown(1, 60, commands.BucketType.user)
     async def gen_img(self, ctx, *args):
         """
         Generate an image from a prompt using openai
@@ -113,24 +108,35 @@ class OpenAI(commands.Cog):
         if not blacklisted(ctx.author):
             prompt = ' '.join(args)
             settings.logger.info(f"generating image")
-            response = self.openai_client.images.generate(
-                model="dall-e-3",
-                prompt=prompt,
-                size="1024x1024",
-                quality="standard",
-                n=1
-            )
-            # image_url = response['data'][0]['url']
-            image_url = response.data[0].url
-            image_filename = wget.download(image_url)
-            await ctx.send(file=discord.File(image_filename))
-            os.remove(image_filename)
+            try:
+                response = self.openai_client.images.generate(
+                    model="dall-e-3",
+                    prompt=prompt,
+                    size="1024x1024",
+                    quality="standard",
+                    n=1
+                )
+                image_url = response.data[0].url
+                image_filename = wget.download(image_url)
+                await ctx.send(file=discord.File(image_filename))
+                os.remove(image_filename)
+                # TODO: add to database
+            except BadRequestError as e:
+                """
+                openai.BadRequestError: Error code: 400 - {'error': {'code': 'content_policy_violation', 'message': 'Your request was rejected as a result of our safety system. Your prompt may contain text that is not allowed by our safety system.', 'param': None, 'type': 'invalid_request_error'}}
+                """
+                if e.code == 400:
+                    if e.code == "content_policy_violation":
+                        await ctx.send("Your prompt was rejected by OpenAI's safety system due to content policy violation")
+                        return
+                raise e
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
     @commands.command(pass_context=True, aliases=["editimg", "editimage", "edit_image"],
                       brief="edit an image from a prompt using openai")
-    async def edit_img(self, ctx):
+    @commands.cooldown(1, 60, commands.BucketType.user)
+    async def edit_img(self, ctx, *args):
         """
         Edit an image from a prompt using openai
         :arg ctx: Context
@@ -138,6 +144,9 @@ class OpenAI(commands.Cog):
         """
 
         if not blacklisted(ctx.author):
+            if not ctx.message.attachments:
+                await ctx.send("No image attached")
+                return
             if ctx.message.attachments[0] is None:
                 await ctx.send("No image attached")
                 return
@@ -149,16 +158,19 @@ class OpenAI(commands.Cog):
             png = png.resize((1024, 1024))
             png.save("temp.png", 'png', quality=100)
             settings.logger.info(f"editing image")
-            response = self.openai_client.images.create_variation(
-                image=open("temp.png", "rb"),
-                n=1,
-                size="1024x1024"
-            )
+            with open("temp.png", "rb") as image_file:
+                response = self.openai_client.images.create_variation(
+                    image=image_file,
+                    n=1,
+                    size="1024x1024"
+                )
             os.remove("temp.png")
             image_url = response['data'][0]['url']
             image_filename = wget.download(image_url)
             await ctx.send(file=discord.File(image_filename))
             os.remove(image_filename)
+
+            # todo: add to database
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
@@ -204,6 +216,7 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["cra", "createassistant"],
                       brief="Create an assistant from a prompt using openai")
+    @commands.cooldown(1, 60, commands.BucketType.user)
     async def create_assistant(self, ctx, name, *args):
         """
         Create an assistant from a prompt using openai
@@ -368,6 +381,7 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["ca", "chatassistant"],
                       brief="chat with an assistant using openai")
+    @commands.cooldown(1, 60, commands.BucketType.user)
     async def chat_assistant(self, ctx, name, *args):
         """
         Chat with an assistant using openai
@@ -401,26 +415,35 @@ class OpenAI(commands.Cog):
                 self.active_threads[guild] = {name: thread}
 
             thread_id = self.active_threads[guild][name].id
-            self.openai_client.beta.threads.messages.create(
+            # Wrap blocking message create call in asyncio.to_thread
+            await asyncio.to_thread(
+                self.openai_client.beta.threads.messages.create,
                 thread_id=thread_id,
                 role="user",
                 content=prompt
             )
-            run = self.openai_client.beta.threads.runs.create(
+            # Wrap blocking run create call in asyncio.to_thread
+            run = await asyncio.to_thread(
+                self.openai_client.beta.threads.runs.create,
                 thread_id=thread_id,
                 assistant_id=assistant.id
             )
             start_time = run.created_at
             while True:
-                run = self.openai_client.beta.threads.runs.retrieve(
+                # Wrap blocking OpenAI API call in asyncio.to_thread to prevent event loop blocking
+                run = await asyncio.to_thread(
+                    self.openai_client.beta.threads.runs.retrieve,
                     thread_id=thread_id,
                     run_id=run.id
                 )
 
                 current_time = time.time()
                 if current_time - start_time > 60:
+                    # TODO: if the assistant times out, deduct from the user's usage, then cancel the run
                     await ctx.send("Assistant time out - cancelling")
-                    run = self.openai_client.beta.threads.runs.cancel(
+                    # Wrap blocking cancel call in asyncio.to_thread
+                    run = await asyncio.to_thread(
+                        self.openai_client.beta.threads.runs.cancel,
                         thread_id=thread_id,
                         run_id=run.id
                     )
@@ -430,7 +453,7 @@ class OpenAI(commands.Cog):
                         await ctx.send("Error cancelling assistant run")
                     return
 
-                if "completed" in run.status:
+                if run.status == "completed":
                     break
                 elif run.status == "queued":
                     pass
@@ -455,7 +478,9 @@ class OpenAI(commands.Cog):
                     return
                 await asyncio.sleep(2)
 
-            messages = self.openai_client.beta.threads.messages.list(
+            # Wrap blocking messages list call in asyncio.to_thread
+            messages = await asyncio.to_thread(
+                self.openai_client.beta.threads.messages.list,
                 thread_id=thread_id
             )
 
@@ -466,7 +491,11 @@ class OpenAI(commands.Cog):
                         await ctx.send(line)
                 # retrieve image file
                 else:
-                    image_data = self.openai_client.files.content(content.image_file.file_id)
+                    # Wrap blocking file content call in asyncio.to_thread
+                    image_data = await asyncio.to_thread(
+                        self.openai_client.files.content,
+                        content.image_file.file_id
+                    )
                     image_data_bytes = image_data.read()
 
                     image_filename = "./my-image.png"
@@ -490,11 +519,22 @@ class OpenAI(commands.Cog):
         :param user: User to ban
         :return: None
         """
-        if ctx.author in settings.info_json["admins"]:
-            blacklist.append(str(user).strip().lower())
-            await ctx.send(f"{user} has been banned from using the openai cog")
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
+        if is_admin:
+            user_str = str(user).strip().lower()
+            if user_str not in blacklist:
+                blacklist.append(user_str)
+                save_blacklist(blacklist)
+                await ctx.send(f"{user} has been banned from using the openai cog")
+            else:
+                await ctx.send(f"{user} is already banned")
         else:
-            await ctx.send(f"{ctx.author} is not an admin and cannot ban someone from using the openai cog")
+            await ctx.send(f"You do not have permission to run this command")
+            settings.logger.warning(f"Unauthorized openai_ban attempt by {ctx.author}")
 
     @commands.command(pass_context=True, aliases=["openai_unban_user", "openai_unbanuser"],
                       brief="Unban a user from using the openai cog")
@@ -505,11 +545,22 @@ class OpenAI(commands.Cog):
         :param user: User to unban
         :return: None
         """
-        if ctx.author in settings.info_json["admins"]:
-            blacklist.remove(str(user).strip().lower())
-            await ctx.send(f"{user} has been unbanned from using the openai cog")
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
+        if is_admin:
+            user_str = str(user).strip().lower()
+            if user_str in blacklist:
+                blacklist.remove(user_str)
+                save_blacklist(blacklist)
+                await ctx.send(f"{user} has been unbanned from using the openai cog")
+            else:
+                await ctx.send(f"{user} is not in the blacklist")
         else:
-            await ctx.send(f"{user} is not an admin and cannot be unbanned from using the openai cog")
+            await ctx.send(f"You do not have permission to run this command")
+            settings.logger.warning(f"Unauthorized openai_unban attempt by {ctx.author}")
 
 
 async def setup(client):

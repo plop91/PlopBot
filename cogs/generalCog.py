@@ -33,13 +33,17 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         """
-        logs any incoming messages and responds to 'hey' with 'hi' to verify bot is functional.
+        Responds to 'hey' with 'hi' to verify bot is functional.
+        Only logs command messages to respect user privacy.
         :arg message: message object
         :return: None
         """
         _id = message.guild
-        message.content = message.content.strip().lower()
-        settings.logger.info(f"Message from {message.author}: {message.content}")
+        # Only log if it's a command (starts with prefix) or from the bot itself
+        # This reduces privacy concerns and log file size
+        if message.content.startswith(tuple(settings.info_json.get("command_prefixes", ["!"]))):
+            settings.logger.info(f"Command from {message.author}: {message.content}")
+
         if message.author != self.client.user:
             if message.content.strip().lower() == "hey":
                 await message.channel.send("Hi")
@@ -47,11 +51,15 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         """
-        logs any deleted messages
+        Logs metadata of deleted messages without content to respect user privacy
         :arg message: message object
         :return: None
         """
-        settings.logger.info(f"deleted message- {message.author} : {message.content}")
+        # Only log metadata, not content, to respect user privacy and GDPR
+        settings.logger.info(
+            f"deleted message- {message.author} in #{message.channel} "
+            f"at {message.created_at} (length: {len(message.content)} chars)"
+        )
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -88,6 +96,10 @@ class General(commands.Cog):
         :arg content: content to repeat
         :return: None
         """
+        MAX_REPEATS = 10
+        if times > MAX_REPEATS:
+            await ctx.send(f"Max {MAX_REPEATS} repeats allowed")
+            return
         for i in range(times):
             await ctx.send(content)
 
@@ -112,15 +124,21 @@ class General(commands.Cog):
         await ctx.channel.send(embed=embed_var)
         await ctx.message.delete()
 
-    @tasks.loop(seconds=0, minutes=30, hours=1)
+    @tasks.loop(hours=1)
     async def change_status(self):
         """
         changes the bot to a randomly provided status.
         :return: None
         """
+        statuses = settings.info_json.get("status", [])
+        if not statuses:
+            settings.logger.warning("No status messages configured, skipping status change")
+            return
+
         settings.logger.info(f"status changed automatically")
-        await self.client.change_presence(status=discord.Status.online, activity=discord.Game(
-            settings.info_json["status"][random.randint(0, len(settings.info_json["status"]) - 1)]))
+        # Use random.choice instead of randint for cleaner code
+        status = random.choice(statuses)
+        await self.client.change_presence(status=discord.Status.online, activity=discord.Game(status))
 
 
 async def setup(client):
