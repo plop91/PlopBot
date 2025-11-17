@@ -33,7 +33,13 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
-        if str(ctx.author) in settings.info_json["admins"]:
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        # Fallback to old string-based check if admin_ids not configured
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
+        if is_admin:
             try:
                 # Get the current git commit hash
                 result = subprocess.run(
@@ -63,7 +69,12 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
-        if str(ctx.author) in settings.info_json["admins"]:
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
+        if is_admin:
             try:
                 # Try to get version from git tag
                 result = subprocess.run(
@@ -93,10 +104,15 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
         # try to gracefully shut down the bot
         # noinspection PyBroadException
         try:
-            if str(ctx.author) in settings.info_json["admins"]:
+            if is_admin:
                 settings.logger.info(f"kill from {ctx.author}!")
                 if str(ctx.message.channel) in settings.info_json["command_channels"]:
                     await self.client.close()
@@ -116,10 +132,15 @@ class Admin(commands.Cog):
         :arg ctx: context of the command
         :return: None
         """
+        # Use Discord user IDs instead of string names to prevent spoofing
+        admin_ids = settings.info_json.get("admin_ids", [])
+        admin_strings = settings.info_json.get("admins", [])
+        is_admin = ctx.author.id in admin_ids or str(ctx.author) in admin_strings
+
         # try to gracefully shut down the bot
         # noinspection PyBroadException
         try:
-            if str(ctx.author) in settings.info_json["admins"]:
+            if is_admin:
                 settings.logger.info(f"restart from {ctx.author}!")
                 if str(ctx.message.channel) in settings.info_json["command_channels"]:
                     await ctx.send("Restarting bot... (requires process manager)")

@@ -23,10 +23,19 @@ class Twitter(commands.Cog):
         """
         self.client = client
 
-        self.auth = OAuthHandler(settings.info_json["twitter"]["apikey"], settings.info_json["twitter"]["apisecret"])
-        self.auth.set_access_token(settings.info_json["twitter"]["accesstoken"],
-                                   settings.info_json["twitter"]["accesstokensecret"])
-        self.auth_api = API(self.auth)
+        # Use environment variables for Twitter credentials with JSON fallback
+        api_key = os.environ.get('TWITTER_API_KEY', settings.info_json.get("twitter", {}).get("apikey"))
+        api_secret = os.environ.get('TWITTER_API_SECRET', settings.info_json.get("twitter", {}).get("apisecret"))
+        access_token = os.environ.get('TWITTER_ACCESS_TOKEN', settings.info_json.get("twitter", {}).get("accesstoken"))
+        access_secret = os.environ.get('TWITTER_ACCESS_SECRET', settings.info_json.get("twitter", {}).get("accesstokensecret"))
+
+        if not all([api_key, api_secret, access_token, access_secret]):
+            settings.logger.warning("Twitter credentials not fully configured in environment variables or config file")
+            self.auth_api = None
+        else:
+            self.auth = OAuthHandler(api_key, api_secret)
+            self.auth.set_access_token(access_token, access_secret)
+            self.auth_api = API(self.auth)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -43,6 +52,10 @@ class Twitter(commands.Cog):
         :param ctx: Context of the command
         :return: None
         """
+        if not self.auth_api:
+            await ctx.send("Twitter API not configured")
+            return
+
         filename = "factbot.jpg"
         settings.logger.info(f"factbot : {ctx.author}")
         await self.get_last_tweet_image("@factbot1", save_as=filename)

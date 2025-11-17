@@ -51,11 +51,15 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         """
-        logs any deleted messages
+        Logs metadata of deleted messages without content to respect user privacy
         :arg message: message object
         :return: None
         """
-        settings.logger.info(f"deleted message- {message.author} : {message.content}")
+        # Only log metadata, not content, to respect user privacy and GDPR
+        settings.logger.info(
+            f"deleted message- {message.author} in #{message.channel} "
+            f"at {message.created_at} (length: {len(message.content)} chars)"
+        )
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -126,9 +130,15 @@ class General(commands.Cog):
         changes the bot to a randomly provided status.
         :return: None
         """
+        statuses = settings.info_json.get("status", [])
+        if not statuses:
+            settings.logger.warning("No status messages configured, skipping status change")
+            return
+
         settings.logger.info(f"status changed automatically")
-        await self.client.change_presence(status=discord.Status.online, activity=discord.Game(
-            settings.info_json["status"][random.randint(0, len(settings.info_json["status"]) - 1)]))
+        # Use random.choice instead of randint for cleaner code
+        status = random.choice(statuses)
+        await self.client.change_presence(status=discord.Status.online, activity=discord.Game(status))
 
 
 async def setup(client):

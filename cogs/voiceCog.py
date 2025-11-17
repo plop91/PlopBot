@@ -29,6 +29,8 @@ class Voices(commands.Cog):
         self.client = client
         # Get voice API URL from config, fallback to localhost
         self.voice_api_url = settings.info_json.get("voice_api", {}).get("url", "http://localhost:8000")
+        # Request timeout in seconds to prevent DoS
+        self.request_timeout = 30
 
     @commands.command(pass_context=True, aliases=['av'], brief='Adds a voice', help='Adds a voice')
     async def add_voice(self, ctx, voice_name: str):
@@ -38,7 +40,7 @@ class Voices(commands.Cog):
         :param voice_name: voice name
         """
         # try to make a voice
-        r = requests.put(f'{self.voice_api_url}/new_voice?name={voice_name}')
+        r = requests.put(f'{self.voice_api_url}/new_voice?name={voice_name}', timeout=self.request_timeout)
         if r.status_code == 200:
             await ctx.send(f'Voice {voice_name} added')
         else:
@@ -70,7 +72,7 @@ class Voices(commands.Cog):
             with open(f'temp/{f.filename}', 'rb') as file:
                 files = {'file': file}
                 # try to make a clip
-                r = requests.put(f'{self.voice_api_url}/new_clip?voice_name={voice_name}', files=files)
+                r = requests.put(f'{self.voice_api_url}/new_clip?voice_name={voice_name}', files=files, timeout=self.request_timeout)
 
             if r.status_code == 200:
                 await ctx.send(f'Clip {f.filename} added to voice {voice_name}')
@@ -90,7 +92,7 @@ class Voices(commands.Cog):
         json_data = json.dumps(data)
 
         # make request
-        r = requests.put(f'{self.voice_api_url}/gen_voice', data=json_data)
+        r = requests.put(f'{self.voice_api_url}/gen_voice', data=json_data, timeout=self.request_timeout)
 
         # check if request was successful
         if r.status_code == 200:
@@ -106,7 +108,7 @@ class Voices(commands.Cog):
         start_time = time.time()
 
         while True:
-            r = requests.get(f'{self.voice_api_url}/get_clip?uid={uuid}&clip=0')
+            r = requests.get(f'{self.voice_api_url}/get_clip?uid={uuid}&clip=0', timeout=self.request_timeout)
             # TODO: schedule a task to check every few seconds so the bot can do other things
             if r.status_code == 200:
                 # download clip
@@ -132,7 +134,7 @@ class Voices(commands.Cog):
         Lists voices
         :param ctx: context
         """
-        r = requests.get(f'{self.voice_api_url}/get_voices')
+        r = requests.get(f'{self.voice_api_url}/get_voices', timeout=self.request_timeout)
         if r.status_code == 200:
             voices = r.json()["voices"]
             await ctx.send('Voices:\n' + "\n".join(voices))
