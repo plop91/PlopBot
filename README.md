@@ -47,12 +47,36 @@ Clone the repository and make a file named "info.json" containing the following 
 
 ## Run:
 
-### Docker:
+### Docker (Recommended):
 
-Build and run the bot making sure you mount the correct location for your source.
+**Using Docker Compose:**
 
+```bash
+# Build and start the bot
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the bot
+docker-compose down
 ```
-docker build -t "discord" . && docker run -v PATH_TO_SOURCE_DIR:/usr/src/app/ --detach --name DiscordBot "discord"
+
+**Using Docker directly:**
+
+```bash
+# Build the image
+docker build -t plopbot:latest .
+
+# Run the container with volume mounts for persistent data
+docker run -d \
+  --name plopbot \
+  --restart unless-stopped \
+  -v $(pwd)/soundboard:/app/soundboard \
+  -v $(pwd)/info:/app/info \
+  -v $(pwd)/markov:/app/markov \
+  -v $(pwd)/voices:/app/voices \
+  plopbot:latest
 ```
 
 ### Python:

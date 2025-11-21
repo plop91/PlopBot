@@ -1,0 +1,83 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+bot.log
+discord.log
+
+# Database files (these should be mounted as volumes)
+*.db
+*.sqlite
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+*.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Testing
+tests/
+test_*.py
+*_test.py
+
+# Old/backup files
+old/
+*.bak
+*.backup
+
+# Docker files (no need to copy these into the image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Migration scripts (already applied)
+apply_db_migration.py
+fix_filename_column.sql
+
+# Schema (documentation only)
+schema.sql
+
+# User-generated content that should be volumes
+soundboard/
+voices/
+youtube/
+markov/

@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  plopbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: plopbot:latest
+    container_name: plopbot
+    restart: unless-stopped
+
+    # Mount volumes for persistent data
+    volumes:
+      - ./soundboard:/app/soundboard
+      - ./info:/app/info
+      - ./markov:/app/markov
+      - ./voices:/app/voices
+      - ./youtube:/app/youtube
+
+    # Environment variables (optional - can override settings)
+    # environment:
+    #   - PYTHONUNBUFFERED=1
+
+    # Network mode (if bot needs to access local network services)
+    # network_mode: host
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Resource limits (adjust as needed)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1.0'
+    #       memory: 1G
+    #     reservations:
+    #       cpus: '0.25'
+    #       memory: 256M
