@@ -43,4 +43,4 @@ RUN useradd -m -u 1000 botuser && \
 USER botuser
 
 # Run the bot with configurable JSON file
-CMD ["python3", "BotHead.py", "--json", "./info/testinginfo.json"]
+CMD ["python3", "BotHead.py"]
