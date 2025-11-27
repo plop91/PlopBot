@@ -1,21 +1,46 @@
-# Build from basic python image
-FROM python:3.8
-# Set working dir to the app folder.
-WORKDIR /usr/src/app
-# Clone git repo
-RUN git clone https://github.com/plop91/PlopBot.git
-# Set working dir to the git repo
-WORKDIR /usr/src/app/PlopBot/
-# Set branch to pull from
-ARG branch=ian-nightly
-# fetch branchs
-RUN git fetch
-# Checkout branch
-RUN git checkout $branch
-# Create a volume so soundboard and info files can be saved on server, must mount with -v
-VOLUME /usr/src/app/PlopBot/soundboard/ /usr/src/app/PlopBot/info/ /usr/src/app/PlopBot/markov/
-# Install dependencies.
-RUN apt-get update && apt-get install -y ffmpeg
-RUN python3 -m pip install -r requirements.txt
-# Run Bot
+# Use Python 3.11 slim image for smaller size
+FROM python:3.11-slim
+
+# Set metadata
+LABEL description="Discord Bot"
+LABEL version="1.1"
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better layer caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p soundboard info markov youtube temp voices
+
+# Create volumes for persistent data
+VOLUME ["/app/soundboard", "/app/info", "/app/markov"]
+
+# Create non-root user for security
+RUN useradd -m -u 1000 botuser && \
+    chown -R botuser:botuser /app
+
+# Switch to non-root user
+USER botuser
+
+# Run the bot with configurable JSON file
 CMD ["python3", "BotHead.py"]

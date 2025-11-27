@@ -133,26 +133,18 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["editimg", "editimage", "edit_image"],
                       brief="edit an image from a prompt using openai")
-<<<<<<< HEAD
-    async def edit_img(self, ctx):
-=======
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def edit_img(self, ctx, *args):
->>>>>>> f372db8 (Fix critical bugs and security issues from code review)
         """
         Edit an image from a prompt using openai
         :arg ctx: Context
         :return: None
         """
 
-<<<<<<< HEAD
         if not blacklisted(ctx.author):
-=======
-        if not blackisted(ctx.author):
             if not ctx.message.attachments:
                 await ctx.send("No image attached")
                 return
->>>>>>> f372db8 (Fix critical bugs and security issues from code review)
             if ctx.message.attachments[0] is None:
                 await ctx.send("No image attached")
                 return
@@ -164,27 +156,12 @@ class OpenAI(commands.Cog):
             png = png.resize((1024, 1024))
             png.save("temp.png", 'png', quality=100)
             settings.logger.info(f"editing image")
-<<<<<<< HEAD
-            response = self.openai_client.images.create_variation(
-                image=open("temp.png", "rb"),
-                n=1,
-                size="1024x1024"
-            )
-=======
-            # response = openai.Image.create_edit(
-            #     image=open("temp.png", "rb"),
-            #     mask=open("mask.png", "rb"),
-            #     prompt=prompt,
-            #     n=1,
-            #     size="1024x1024"
-            # )
             with open("temp.png", "rb") as image_file:
                 response = self.openai_client.images.create_variation(
                     image=image_file,
                     n=1,
                     size="1024x1024"
                 )
->>>>>>> f372db8 (Fix critical bugs and security issues from code review)
             os.remove("temp.png")
             image_url = response['data'][0]['url']
             image_filename = wget.download(image_url)
@@ -452,7 +429,6 @@ class OpenAI(commands.Cog):
                     run_id=run.id
                 )
 
-<<<<<<< HEAD
                 current_time = time.time()
                 if current_time - start_time > 60:
                     # TODO: if the assistant times out, deduct from the user's usage, then cancel the run
@@ -467,11 +443,7 @@ class OpenAI(commands.Cog):
                         await ctx.send("Error cancelling assistant run")
                     return
 
-                if "completed" in run.status:
-=======
                 if run.status == "completed":
-                    # await ctx.send("Assistant complete")
->>>>>>> f372db8 (Fix critical bugs and security issues from code review)
                     break
                 elif run.status == "queued":
                     pass
