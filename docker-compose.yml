@@ -18,11 +18,11 @@ services:
       - ./youtube:/app/youtube
 
     # Environment variables (optional - can override settings)
-    # environment:
-    #   - PYTHONUNBUFFERED=1
-
-    # Network mode (if bot needs to access local network services)
-    # network_mode: host
+    environment:
+      # Override CONFIG_FILE to use a different config (default: info/info.json)
+      - CONFIG_FILE=info/info.json
+      # For development, use:
+      # - CONFIG_FILE=info/testinginfo.json
 
     # Logging configuration
     logging:
@@ -31,12 +31,3 @@ services:
         max-size: "10m"
         max-file: "3"
 
-    # Resource limits (adjust as needed)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '1.0'
-    #       memory: 1G
-    #     reservations:
-    #       cpus: '0.25'
-    #       memory: 256M

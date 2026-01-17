@@ -8,6 +8,7 @@ import wget
 import settings
 import discord
 import os
+from cogs.adminCog import not_banned
 
 
 class Twitter(commands.Cog):
@@ -37,6 +38,7 @@ class Twitter(commands.Cog):
         settings.logger.info(f"twit cog ready!")
 
     @commands.command(brief="Retrieves the most recent post from factbot.")
+    @not_banned()
     async def factbot(self, ctx):
         """
         gets the most recently tweeted image from the Twitter account @factbot1

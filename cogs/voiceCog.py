@@ -5,6 +5,7 @@ import requests
 import os
 import time
 import json
+from cogs.adminCog import not_banned
 
 
 class Voices(commands.Cog):
@@ -21,6 +22,7 @@ class Voices(commands.Cog):
     """
 
     @commands.command(pass_context=True, aliases=['av'], brief='Adds a voice', help='Adds a voice')
+    @not_banned()
     async def add_voice(self, ctx, voice_name: str):
         """
         Adds a voice to the database
@@ -39,6 +41,7 @@ class Voices(commands.Cog):
             pass
 
     @commands.command(pass_context=True, aliases=['ac'], brief='Adds a clip', help='Adds a clip')
+    @not_banned()
     async def add_clip(self, ctx, voice_name: str):
         """
         Adds a clip to the database
@@ -67,6 +70,7 @@ class Voices(commands.Cog):
                 await ctx.send(f'Failed to add clip {f.filename} to voice {voice_name}')
 
     @commands.command(pass_context=True, aliases=['mc'], brief='Makes a clip', help='Makes a clip')
+    @not_banned()
     async def make_clip(self, ctx, voice_name: str, *text: str):
         """
         Makes a clip with the given text and voice
@@ -116,6 +120,7 @@ class Voices(commands.Cog):
             time.sleep(5)
 
     @commands.command(pass_context=True, aliases=['lv'], brief='Lists voices', help='Lists voices')
+    @not_banned()
     async def list_voices(self, ctx):
         """
         Lists voices

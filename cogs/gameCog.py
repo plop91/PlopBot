@@ -6,6 +6,7 @@ import settings
 from settings import add_to_json
 from discord.ext import commands
 import random
+from cogs.adminCog import not_banned
 
 
 class Game(commands.Cog):
@@ -32,6 +33,7 @@ class Game(commands.Cog):
     @commands.command(pass_context=True, aliases=['add'],
                       brief="",
                       description="")
+    @not_banned()
     async def add_scribble(self, ctx, tag):
         """
         Adds a scribble word to the list of words
@@ -46,6 +48,7 @@ class Game(commands.Cog):
     @commands.command(pass_context=True, aliases=['list'],
                       brief="",
                       description="")
+    @not_banned()
     async def list_scribble(self, ctx):
         """
         Lists all the scribble words
@@ -67,6 +70,7 @@ class Game(commands.Cog):
     @commands.command(pass_context=True, aliases=['TEAMS'],
                       brief="Divides the current channel into random teams. Defaults to 2.",
                       description="Divides the current channel into random teams. Defaults to 2.")
+    @not_banned()
     async def teams(self, ctx, teams="2"):
         """
         Divides the current channel into random teams.
@@ -111,6 +115,7 @@ class Game(commands.Cog):
     @commands.command(pass_context=True, aliases=['dice'],
                       brief="Rolls a random die of specified size. Give a second number for multiple rolls.",
                       description="Rolls a random die of specified size. Give a second number for multiple rolls.")
+    @not_banned()
     async def roll(self, ctx, sides, times="1"):
         """
         Rolls an equally distributed die of specified size
