@@ -17,6 +17,8 @@ import ffmpeg
 import shutil
 import settings
 import traceback
+from datetime import datetime, timedelta
+from cogs.adminCog import not_banned
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -87,6 +89,7 @@ class Audio(commands.Cog):
         """
         self.client = client
         self.maintenance.start()
+        self.inactivity_check.start()
         self.models = {}
         self.sounds = {}
         for file in os.listdir("soundboard"):
@@ -96,6 +99,15 @@ class Audio(commands.Cog):
         self.volume = 0.7
 
         self.ghost_message = {}
+        self.last_activity = {}  # Track last command time per guild
+
+    def update_activity(self, guild_id):
+        """
+        Update the last activity timestamp for a guild
+        :param guild_id: The guild ID to update
+        :return: None
+        """
+        self.last_activity[guild_id] = datetime.now()
 
     @staticmethod
     def clean_youtube():
@@ -190,6 +202,8 @@ class Audio(commands.Cog):
                     if member is not None and member.voice is not None:
                         for client in self.client.voice_clients:
                             if client.channel.id == member.voice.channel.id:
+                                # Update activity for webhook commands
+                                self.update_activity(message.guild.id)
                                 if data[2] == "stop":
                                     if client.is_playing():
                                         client.stop()
@@ -211,6 +225,10 @@ class Audio(commands.Cog):
         :arg filename: name of the file to play
         :return: None
         """
+        # Update activity timestamp
+        guild_id = text_channel.guild.id if hasattr(text_channel, 'guild') else text_channel.channel.guild.id
+        self.update_activity(guild_id)
+
         try:
             # TODO: Fix this, this is me being very lazy
             og = filename
@@ -270,6 +288,7 @@ class Audio(commands.Cog):
                       brief="Plays a clip with the same name as the argument. alt command = 'p'",
                       description="Makes the bot play one of the soundboard files. For example if you wanted to play "
                                   "a file named hammer you would enter '.play hammer'/'.p hammer'")
+    @not_banned()
     async def play(self, ctx, filename=None):
         """
         Plays a mp3 from the library of downloaded mp3's
@@ -321,6 +340,7 @@ class Audio(commands.Cog):
                       description="Makes the bot play a youtube videos audio. For example if you wanted to play the "
                                   "youtube video at 'https://www.youtube.com/watch?v=1234' you would enter '.youtube "
                                   "https://www.youtube.com/watch?v=1234'/'.yt https://www.youtube.com/watch?v=1234'")
+    @not_banned()
     async def youtube(self, ctx, *, url):
         """
         Downloads and plays the audio of the provided YouTube link. Plays from an url (almost anything yt_dlp
@@ -330,6 +350,7 @@ class Audio(commands.Cog):
         :return: None
         """
         settings.logger.info(f"youtube from {ctx.author} :{url}")
+        self.update_activity(ctx.guild.id)
         async with ctx.typing():
             player = await YTDLSource.from_url(url, loop=self.client.loop, volume=self.volume)
             ctx.voice_client.play(player)
@@ -339,6 +360,7 @@ class Audio(commands.Cog):
                       aliases=['STREAM'],
                       brief="Streams from a url (same as yt, but doesn't pre-download)",
                       description="Streams from a url (same as yt, but doesn't pre-download)")
+    @not_banned()
     async def stream(self, ctx, *, url):
         """
         Streams from an url (same as yt, but doesn't pre-download)
@@ -346,6 +368,7 @@ class Audio(commands.Cog):
         :arg url: url of the YouTube video to play
         :return: None
         """
+        self.update_activity(ctx.guild.id)
         async with ctx.typing():
             player = await YTDLSource.from_url(url, loop=self.client.loop, stream=True, volume=self.volume)
             ctx.voice_client.play(player)
@@ -355,6 +378,7 @@ class Audio(commands.Cog):
                       aliases=['l', 'LEAVE', 'L'],
                       brief="Make the bot leave the voice server. alt command = 'l'",
                       description="Makes the bot leave the voice server.")
+    @not_banned()
     async def leave(self, ctx):
         """
         Forces the bot to leave any voice channel it is in.
@@ -368,6 +392,9 @@ class Audio(commands.Cog):
 
         if channel and voice and voice.is_connected():
             await voice.disconnect()
+            # Clean up activity tracking when manually disconnecting
+            if ctx.guild.id in self.last_activity:
+                del self.last_activity[ctx.guild.id]
             settings.logger.info(f"The bot has left {channel}")
         elif not channel:
             settings.logger.info(f"Member was not in a voice channel.")
@@ -382,6 +409,7 @@ class Audio(commands.Cog):
                       aliases=['PAUSE'],
                       brief="Pause everything the bot is playing",
                       description="Makes the bot pause anything that it is playing.")
+    @not_banned()
     async def pause(self, ctx):
         """
         Pauses whatever the bot is playing
@@ -403,6 +431,7 @@ class Audio(commands.Cog):
                       aliases=['r', 'RESUME', 'R'],
                       brief="Resume playing paused Music. alt command = 'r'",
                       description="Makes the bot resume playing any paused audio.")
+    @not_banned()
     async def resume(self, ctx):
         """
         Resumes playing if the bot is paused
@@ -424,6 +453,7 @@ class Audio(commands.Cog):
                       brief="Stop any Music the bot is playing or has paused. alt command = 's'",
                       description="Makes the bot stop playing any audio and forget what it was "
                                   "playing and when it stopped.")
+    @not_banned()
     async def stop(self, ctx):
         """
         Stops playing whatever is playing
@@ -445,6 +475,7 @@ class Audio(commands.Cog):
                       aliases=['v', 'VOLUME', 'V', 'vol'],
                       brief="changes the volume of the bot",
                       description="Changes the volume of the bot.")
+    @not_banned()
     async def volume(self, ctx, volume: int):
         """
         Change the volume the bot plays back at
@@ -470,6 +501,7 @@ class Audio(commands.Cog):
                       aliases=['g', 'GET', 'G'],
                       brief="returns a soundbite",
                       description="returns a soundbite")
+    @not_banned()
     async def get(self, ctx, sound: str):
         """
         Returns a soundbite
@@ -494,6 +526,7 @@ class Audio(commands.Cog):
     @commands.command(aliases=['SAY'],
                       brief="",
                       description="")
+    @not_banned()
     async def say(self, ctx, text, *, tts_file='say'):
         """
         Say the given string in the audio channel using TTS.
@@ -503,6 +536,7 @@ class Audio(commands.Cog):
         :return: None
         """
         settings.logger.info(f"say from {ctx.author} text:{text}")
+        self.update_activity(ctx.guild.id)
         text = text.strip().lower()
 
         # Limit TTS text length to prevent abuse
@@ -542,6 +576,39 @@ class Audio(commands.Cog):
         self.clean_youtube()
         settings.soundboard_db.verify_db()
         settings.logger.info(f"Maintenance completed")
+
+    @tasks.loop(minutes=1.0)
+    async def inactivity_check(self):
+        """
+        Task to check for voice channel inactivity and disconnect after 10 minutes
+        :return: None
+        """
+        now = datetime.now()
+        timeout = timedelta(minutes=10)
+
+        for voice_client in self.client.voice_clients:
+            guild_id = voice_client.guild.id
+
+            # If there's no recorded activity for this guild, set it to now
+            if guild_id not in self.last_activity:
+                self.last_activity[guild_id] = now
+                continue
+
+            # Check if 10 minutes have passed since last activity
+            time_since_activity = now - self.last_activity[guild_id]
+            if time_since_activity >= timeout:
+                settings.logger.info(f"Disconnecting from {voice_client.channel.name} in {voice_client.guild.name} due to 10 minutes of inactivity")
+                await voice_client.disconnect()
+                # Remove the guild from tracking
+                del self.last_activity[guild_id]
+
+    @inactivity_check.before_loop
+    async def before_inactivity_check(self):
+        """
+        Wait for the bot to be ready before starting the inactivity check task
+        :return: None
+        """
+        await self.client.wait_until_ready()
 
 
 async def setup(client):

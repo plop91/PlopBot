@@ -15,6 +15,7 @@ import json
 import asyncio
 
 from db.openai_database_manager import OpenAIDatabaseManager
+from cogs.adminCog import not_banned
 
 global logger
 
@@ -95,6 +96,7 @@ class OpenAI(commands.Cog):
     @commands.command(pass_context=True, aliases=["genimg", "genimage", "gen_image"],
                       brief="generate an image from a prompt using openai")
     @commands.cooldown(1, 60, commands.BucketType.user)
+    @not_banned()
     async def gen_img(self, ctx, *args):
         """
         Generate an image from a prompt using openai
@@ -134,6 +136,7 @@ class OpenAI(commands.Cog):
     @commands.command(pass_context=True, aliases=["editimg", "editimage", "edit_image"],
                       brief="edit an image from a prompt using openai")
     @commands.cooldown(1, 60, commands.BucketType.user)
+    @not_banned()
     async def edit_img(self, ctx, *args):
         """
         Edit an image from a prompt using openai
@@ -194,6 +197,7 @@ class OpenAI(commands.Cog):
 
     @commands.command(pass_context=True, aliases=["la", "listassistants"],
                       brief="Prints the list of existing assistants")
+    @not_banned()
     async def list_assistants(self, ctx):
         """
         Prints the list of existing assistants
@@ -215,6 +219,7 @@ class OpenAI(commands.Cog):
     @commands.command(pass_context=True, aliases=["cra", "createassistant"],
                       brief="Create an assistant from a prompt using openai")
     @commands.cooldown(1, 60, commands.BucketType.user)
+    @not_banned()
     async def create_assistant(self, ctx, name, *args):
         """
         Create an assistant from a prompt using openai
@@ -380,6 +385,7 @@ class OpenAI(commands.Cog):
     @commands.command(pass_context=True, aliases=["ca", "chatassistant"],
                       brief="chat with an assistant using openai")
     @commands.cooldown(1, 60, commands.BucketType.user)
+    @not_banned()
     async def chat_assistant(self, ctx, name, *args):
         """
         Chat with an assistant using openai

@@ -9,7 +9,8 @@ LABEL version="1.1"
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    CONFIG_FILE=info/info.json
 
 # Set working directory
 WORKDIR /app
@@ -42,5 +43,5 @@ RUN useradd -m -u 1000 botuser && \
 # Switch to non-root user
 USER botuser
 
-# Run the bot with configurable JSON file
-CMD ["python3", "BotHead.py"]
+# Run the bot with configurable JSON file (override CONFIG_FILE env var to change config)
+CMD ["sh", "-c", "python3 BotHead.py --json ${CONFIG_FILE}"]

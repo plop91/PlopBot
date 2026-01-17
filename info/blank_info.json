@@ -12,6 +12,10 @@
     "password": "SOUNDBOARD_DATABASE_PASSWORD",
     "database": "SOUNDBOARD_DATABASE_NAME"
   },
+  "github_url": "https://github.com/plop91/PlopBot",
+  "announcement_channels": [
+    "announcements"
+  ],
   "twitter": {
     "apikey": "TWITTER_API_KEY",
     "apisecret": "TWITTER_API_SECRET",
@@ -23,7 +27,7 @@
     "text_gen_engine": "gpt-4"
   },
   "servers": {
-    "SERVERNAME": 12345 //SERVER_ID
+    "SERVERNAME": 12345
   },
   "valid_users": [
     "VALID_USER_ID"
