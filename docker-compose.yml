@@ -13,7 +13,6 @@ services:
     volumes:
       - ./soundboard:/app/soundboard
       - ./info:/app/info
-      - ./markov:/app/markov
       - ./voices:/app/voices
       - ./youtube:/app/youtube
 

@@ -31,10 +31,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p soundboard info markov youtube temp voices
+RUN mkdir -p soundboard info youtube temp voices
 
 # Create volumes for persistent data
-VOLUME ["/app/soundboard", "/app/info", "/app/markov"]
+VOLUME ["/app/soundboard", "/app/info"]
 
 # Create non-root user for security
 RUN useradd -m -u 1000 botuser && \

@@ -6,7 +6,7 @@ A Discord bot with an integrated soundboard and text to speech capabilities writ
 
 Clone the repository and make a file named "info.json" containing the following with bold typed words replaced with relevant information.
 
-```
+```json
 {
   "token": "DISCORD_BOT_TOKEN",
   "soundboard_database": {
@@ -45,9 +45,9 @@ Clone the repository and make a file named "info.json" containing the following 
 }
 ```
 
-## Run:
+## Run
 
-### Docker (Recommended):
+### Docker (Recommended)
 
 **Using Docker Compose:**
 
@@ -74,16 +74,15 @@ docker run -d \
   --restart unless-stopped \
   -v $(pwd)/soundboard:/app/soundboard \
   -v $(pwd)/info:/app/info \
-  -v $(pwd)/markov:/app/markov \
   -v $(pwd)/voices:/app/voices \
   plopbot:latest
 ```
 
-### Python:
+### Python
 
 Run the bot. If your json file uses a name other than json.info, you can specify it using --json. You can also override any of the database connection options by specifying them, otherwise they will be taken from the info.json file.
 
-```
+```sh
 python3 BotHead.py  [-h] [--json JSON] 
                     [--db_host DB_HOST] 
                     [--db_username DB_USERNAME] 
