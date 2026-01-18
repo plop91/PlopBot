@@ -4,28 +4,35 @@ Settings file for the bot, contains json data, databases and logging.
 
 VERSION = "0.0.2"
 
+import argparse
 import mysql.connector
 from mysql.connector import errorcode
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Optional, Any, Callable, List, Dict
 import re
 import json
 import logging
 import os
 
-global info_json
-global db
-global token
-global logger
-global soundboard_db
-global ban_db
-global version_db
+
+# Module-level settings instance (initialized by init())
+settings: Optional["Settings"] = None
 
 
-def init(args):
-    """Initializes global variables"""
+@dataclass
+class Settings:
+    """Container for all global settings and database connections"""
+    info_json: dict
+    token: str
+    logger: logging.Logger
+    soundboard_db: "SoundboardDBManager"
+    ban_db: "BanDBManager"
+    version_db: "VersionDBManager"
 
-    # <logger---------------------------------------------------------------------------------------------------------->
-    global logger
+
+def _setup_logging() -> tuple[logging.Logger, logging.Logger]:
+    """Sets up logging configuration and returns (bot_logger, discord_logger)"""
     discord_logger = logging.getLogger("discord")
     discord_logger.setLevel(logging.INFO)
 
@@ -33,8 +40,8 @@ def init(args):
     discord_file_handler = logging.FileHandler("discord.log")
     console_handler = logging.StreamHandler()
 
-    logger = logging.getLogger("Logger")
-    logger.setLevel(logging.DEBUG)
+    bot_logger = logging.getLogger("Logger")
+    bot_logger.setLevel(logging.DEBUG)
     file_handler.setLevel(logging.DEBUG)
     console_handler.setLevel(logging.DEBUG)
 
@@ -44,77 +51,115 @@ def init(args):
     file_handler.setFormatter(formatter)
     discord_file_handler.setFormatter(formatter)
 
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+    bot_logger.addHandler(file_handler)
+    bot_logger.addHandler(console_handler)
     discord_logger.addHandler(discord_file_handler)
     discord_logger.addHandler(console_handler)
-    # <logger---------------------------------------------------------------------------------------------------------->
 
-    # <json------------------------------------------------------------------------------------------------------------>
-    global info_json
-    with open(args.json, 'r') as f:
+    return bot_logger, discord_logger
+
+
+def _load_config(json_path: str) -> tuple[dict, str]:
+    """Loads configuration from JSON file and returns (config_dict, token)"""
+    with open(json_path, 'r') as f:
         info_json = json.load(f)
-        f.close()
-    global token
     token = info_json["token"]
-    # <json------------------------------------------------------------------------------------------------------------>
-
-    # <soundboard_db--------------------------------------------------------------------------------------------------->
-    global soundboard_db
-
-    if args.db_host is None:
-        host = info_json['soundboard_database']['server_address']
-    else:
-        host = args.db_host
-
-    if args.db_username is None:
-        db_username = info_json['soundboard_database']['username']
-    else:
-        db_username = args.db_username
-
-    if args.db_password is None:
-        db_password = info_json['soundboard_database']['password']
-    else:
-        db_password = args.db_password
-
-    if args.db_name is None:
-        db_name = info_json['soundboard_database']['database']
-    else:
-        db_name = args.db_name
-
-    soundboard_db = SoundboardDBManager(db_host=host, db_username=db_username, db_password=db_password,
-                                        database_name=db_name)
-    # <soundboard_db--------------------------------------------------------------------------------------------------->
-
-    # <ban_db---------------------------------------------------------------------------------------------------------->
-    global ban_db
-    ban_db = BanDBManager(db_host=host, db_username=db_username, db_password=db_password,
-                          database_name=db_name)
-    # <ban_db---------------------------------------------------------------------------------------------------------->
-
-    # <version_db------------------------------------------------------------------------------------------------------>
-    global version_db
-    version_db = VersionDBManager(db_host=host, db_username=db_username, db_password=db_password,
-                                  database_name=db_name)
-    # <version_db------------------------------------------------------------------------------------------------------>
+    return info_json, token
 
 
-class SoundboardDBManager:
+def _get_db_config(args: argparse.Namespace, info_json: dict) -> dict:
+    """Extracts database configuration from args or info_json"""
+    return {
+        'host': args.db_host or info_json['soundboard_database']['server_address'],
+        'username': args.db_username or info_json['soundboard_database']['username'],
+        'password': args.db_password or info_json['soundboard_database']['password'],
+        'database': args.db_name or info_json['soundboard_database']['database'],
+    }
+
+
+def _init_databases(db_config: dict, logger: logging.Logger) -> tuple["SoundboardDBManager", "BanDBManager", "VersionDBManager"]:
+    """Initializes all database managers"""
+    soundboard_db = SoundboardDBManager(
+        db_host=db_config['host'],
+        db_username=db_config['username'],
+        db_password=db_config['password'],
+        database_name=db_config['database'],
+        logger=logger
+    )
+    ban_db = BanDBManager(
+        db_host=db_config['host'],
+        db_username=db_config['username'],
+        db_password=db_config['password'],
+        database_name=db_config['database'],
+        logger=logger
+    )
+    version_db = VersionDBManager(
+        db_host=db_config['host'],
+        db_username=db_config['username'],
+        db_password=db_config['password'],
+        database_name=db_config['database'],
+        logger=logger
+    )
+    return soundboard_db, ban_db, version_db
+
+
+def init(args: argparse.Namespace) -> None:
+    """Initializes global settings"""
+    global settings
+
+    # Setup logging
+    bot_logger, _ = _setup_logging()
+
+    # Load configuration
+    info_json, token = _load_config(args.json)
+
+    # Get database configuration
+    db_config = _get_db_config(args, info_json)
+
+    # Initialize databases
+    soundboard_db, ban_db, version_db = _init_databases(db_config, bot_logger)
+
+    # Create settings instance
+    settings = Settings(
+        info_json=info_json,
+        token=token,
+        logger=bot_logger,
+        soundboard_db=soundboard_db,
+        ban_db=ban_db,
+        version_db=version_db
+    )
+
+
+class BaseDBManager:
     """
-    Manages the soundboard database
+    Base class for database managers with shared connection and reconnection logic
     """
-    def __init__(self, db_host, db_username, db_password, database_name):
-        self.db = None
-        self.my_cursor = None
+    # Error codes for connection lost
+    CR_SERVER_GONE_ERROR = 2006
+    CR_SERVER_LOST = 2013
+
+    def __init__(
+        self,
+        db_host: str,
+        db_username: str,
+        db_password: str,
+        database_name: str,
+        logger: logging.Logger,
+        name: str = "DB"
+    ):
+        self.db: Optional[mysql.connector.MySQLConnection] = None
+        self.my_cursor: Optional[mysql.connector.cursor.MySQLCursor] = None
 
         self.db_host = db_host
         self.db_username = db_username
         self.db_password = db_password
         self.database_name = database_name
+        self._logger = logger
+        self._name = name
 
         self.connect()
 
-    def connect(self):
+    def connect(self) -> None:
         """Connects to the database"""
         try:
             self.db = mysql.connector.connect(
@@ -126,217 +171,134 @@ class SoundboardDBManager:
             self.my_cursor = self.db.cursor()
         except mysql.connector.Error as e:
             if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                logger.warning("Soundboard user name or password is Bad")
+                self._logger.warning(f"{self._name}: username or password is bad")
             elif e.errno == errorcode.ER_BAD_DB_ERROR:
-                logger.warning("Database does not exist")
+                self._logger.warning(f"{self._name}: Database does not exist")
             else:
-                logger.warning(e)
+                self._logger.warning(f"{self._name}: {e}")
 
-    def add_db_entry(self, filename: str, name: str):
-        """Adds given filename to database with the given name"""
+    def _execute_with_reconnect(self, operation: Callable[[], Any], *args, **kwargs) -> Any:
+        """Helper to execute database operations with automatic reconnection"""
         try:
+            return operation(*args, **kwargs)
+        except mysql.connector.Error as e:
+            # Handle both CR_SERVER_GONE_ERROR (2006) and CR_SERVER_LOST (2013)
+            if e.errno == errorcode.CR_SERVER_GONE_ERROR or e.errno == self.CR_SERVER_LOST:
+                self._logger.info(f"{self._name}: connection lost (error {e.errno}), attempting recovery")
+                self.connect()
+                return operation(*args, **kwargs)
+            else:
+                raise
+
+
+class SoundboardDBManager(BaseDBManager):
+    """
+    Manages the soundboard database
+    """
+    def __init__(
+        self,
+        db_host: str,
+        db_username: str,
+        db_password: str,
+        database_name: str,
+        logger: logging.Logger
+    ):
+        super().__init__(db_host, db_username, db_password, database_name, logger, "Soundboard DB")
+
+    def add_db_entry(self, filename: str, name: str) -> None:
+        """Adds given filename to database with the given name"""
+        def _do_add() -> None:
             sql = "INSERT INTO discord_soundboard (filename, name, date_added) VALUES (%s, %s, %s)"
             val = (filename, name, datetime.now())
             self.my_cursor.execute(sql, val)
             self.db.commit()
-            logger.info(f"adding sound to db filename:{filename}  name:{name}")
-        except mysql.connector.errors.IntegrityError:
-            raise ValueError
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
-                logger.info(f"server gone error attempting recovery")
-                try:
-                    self.connect()
+            self._logger.info(f"adding sound to db filename:{filename}  name:{name}")
 
-                    sql = "INSERT INTO discord_soundboard (filename, name, date_added) VALUES (%s, %s, %s)"
-                    val = (filename, name, datetime.now())
-                    self.my_cursor.execute(sql, val)
-                    self.db.commit()
-                    logger.info(f"adding sound to db filename:{filename}  name:{name}")
-                except mysql.connector.Error as retry_error:
-                    logger.error(f"Database error during retry: {retry_error}")
-                    raise
-            else:
-                logger.error(f"Database error: {e}")
-                raise
-
-    def remove_db_entry(self, filename: str):
-        """Removes database entry for the given filename"""
         try:
+            self._execute_with_reconnect(_do_add)
+        except mysql.connector.errors.IntegrityError:
+            raise ValueError(f"Sound '{name}' already exists in database")
+
+    def remove_db_entry(self, filename: str) -> None:
+        """Removes database entry for the given filename"""
+        def _do_remove() -> None:
             if filename is not None:
                 sql = "DELETE FROM discord_soundboard WHERE name = %s"
-                adr = (filename,)
-                self.my_cursor.execute(sql, adr)
+                self.my_cursor.execute(sql, (filename,))
                 self.db.commit()
-                logger.info(f"removed sound from db filename:{filename}")
+                self._logger.info(f"removed sound from db filename:{filename}")
 
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
-                logger.info(f"server gone error attempting recovery")
-                try:
-                    self.connect()
+        self._execute_with_reconnect(_do_remove)
 
-                    sql = "DELETE FROM discord_soundboard WHERE name = %s"
-                    adr = (filename,)
-                    self.my_cursor.execute(sql, adr)
-                    self.db.commit()
-                    logger.info(f"removed sound from db filename:{filename}")
-
-                except mysql.connector.Error as retry_error:
-                    logger.error(f"Database error during retry while removing: {retry_error}")
-                    raise
-            else:
-                logger.error(f"Database error while removing: {e}")
-                raise
-
-    def list_db_files(self):
+    def list_db_files(self) -> List[tuple]:
         """Returns a list of database entries"""
-        try:
+        def _do_list() -> List[tuple]:
             sql = "SELECT * FROM discord_soundboard"
             self.my_cursor.execute(sql)
             my_result = self.my_cursor.fetchall()
-            logger.info("list database files")
+            self._logger.info("list database files")
             return my_result
 
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
-                logger.info(f"server gone error attempting recovery")
-                try:
-                    self.connect()
+        return self._execute_with_reconnect(_do_list)
 
-                    sql = "SELECT * FROM discord_soundboard"
-                    self.my_cursor.execute(sql)
-                    my_result = self.my_cursor.fetchall()
-                    return my_result
-
-                except mysql.connector.Error as retry_error:
-                    logger.error(f"Database error during retry while listing: {retry_error}")
-                    raise
-            else:
-                logger.error(f"Database error while listing: {e}")
-                raise
-
-    def verify_db(self):
-        """Checks database against files on server and manages database accordingly
-        #Note: This function is very inefficient and needs optimization
+    def verify_db(self) -> None:
         """
-        logger.info(f"verifying soundboard db!")
-        db_files = []
-        try:
-            db_files = self.list_db_files()  # get list of database files
+        Checks database against files on server and manages database accordingly.
+        Syncs filesystem soundboard files with database entries.
+        """
+        self._logger.info("verifying soundboard db!")
 
+        try:
+            db_files = self.list_db_files()
         except mysql.connector.Error as e:
-            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
-                logger.info(f"server gone error attempting recovery")
-                try:
-                    self.connect()
-                    db_files = self.list_db_files()
+            self._logger.error(f"Database error while verifying: {e}")
+            return
 
-                except mysql.connector.Error as retry_error:
-                    logger.error(f"Database error during retry while verifying: {retry_error}")
-                    return
-            else:
-                logger.error(f"Database error while verifying: {e}")
-                return
         try:
+            # Get list of mp3 files on disk
+            disk_files = set()
             for file in os.listdir("./soundboard"):
                 if file.endswith(".mp3"):
-                    for temp in db_files:
-                        if temp[0] == file:
-                            db_files.remove(temp)
+                    disk_files.add(file)
 
-            for file in db_files:
-                self.remove_db_entry(file[1])
+            # Find db entries not on disk and remove them
+            db_file_set = {entry[0] for entry in db_files}  # filenames from db
+            for entry in db_files:
+                if entry[0] not in disk_files:
+                    self.remove_db_entry(entry[1])
 
-            for file in os.listdir("./soundboard"):
-                if file.endswith(".mp3"):
-                    if [db_file for db_file in db_files if db_file[1] == file]:
+            # Find disk files not in db and add them
+            db_names = {entry[1] for entry in db_files}  # names from db
+            for file in disk_files:
+                name = file.replace(".mp3", "").lower()
+                if name not in db_names:
+                    try:
+                        self.add_db_entry(file.lower(), name)
+                    except ValueError:
                         continue
-                    else:
-                        try:
-                            self.add_db_entry(file.lower(), file.replace(".mp3", "").lower())
-                        except ValueError:
-                            continue
+
         except OSError as e:
-            logger.error(f"File system error while verifying db: {e}")
+            self._logger.error(f"File system error while verifying db: {e}")
         except mysql.connector.Error as e:
-            logger.error(f"Database error while verifying db: {e}")
+            self._logger.error(f"Database error while verifying db: {e}")
 
 
-def add_to_json(filename, json_data, tag, data):
-    """adds given data to a json file"""
-    with open(filename, "w") as file:
-        json_data[tag].append(data)
-        json.dump(json_data, file, indent=4)
-
-
-def parse_ban_duration(duration_str: str):
-    """
-    Parses a duration string into a timedelta.
-    Supports: Xm (minutes), Xh (hours), Xd (days), or 'x'/'permanent' for permanent bans.
-    Returns None for permanent bans, or a timedelta for timed bans.
-    Raises ValueError for invalid formats.
-    """
-    duration_str = duration_str.strip().lower()
-
-    # Check for permanent ban
-    if duration_str in ('x', 'permanent', 'perm', 'forever'):
-        return None
-
-    # Parse duration with regex
-    match = re.match(r'^(\d+)([mhd])$', duration_str)
-    if not match:
-        raise ValueError(f"Invalid duration format: {duration_str}. Use Xm, Xh, Xd, or 'x' for permanent.")
-
-    value = int(match.group(1))
-    unit = match.group(2)
-
-    if value <= 0:
-        raise ValueError("Duration must be a positive number.")
-
-    if unit == 'm':
-        return timedelta(minutes=value)
-    elif unit == 'h':
-        return timedelta(hours=value)
-    elif unit == 'd':
-        return timedelta(days=value)
-
-
-class BanDBManager:
+class BanDBManager(BaseDBManager):
     """
     Manages the bot ban database
     """
-    def __init__(self, db_host, db_username, db_password, database_name):
-        self.db = None
-        self.my_cursor = None
-
-        self.db_host = db_host
-        self.db_username = db_username
-        self.db_password = db_password
-        self.database_name = database_name
-
-        self.connect()
+    def __init__(
+        self,
+        db_host: str,
+        db_username: str,
+        db_password: str,
+        database_name: str,
+        logger: logging.Logger
+    ):
+        super().__init__(db_host, db_username, db_password, database_name, logger, "Ban DB")
         self._create_table()
 
-    def connect(self):
-        """Connects to the database"""
-        try:
-            self.db = mysql.connector.connect(
-                host=self.db_host,
-                user=self.db_username,
-                password=self.db_password,
-                database=self.database_name
-            )
-            self.my_cursor = self.db.cursor()
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                logger.warning("Ban DB: user name or password is bad")
-            elif e.errno == errorcode.ER_BAD_DB_ERROR:
-                logger.warning("Ban DB: Database does not exist")
-            else:
-                logger.warning(f"Ban DB: {e}")
-
-    def _create_table(self):
+    def _create_table(self) -> None:
         """Creates the ban table if it doesn't exist"""
         try:
             sql = """
@@ -351,32 +313,32 @@ class BanDBManager:
             """
             self.my_cursor.execute(sql)
             self.db.commit()
-            logger.info("Ban table verified/created")
+            self._logger.info("Ban table verified/created")
         except mysql.connector.Error as e:
-            logger.error(f"Failed to create ban table: {e}")
+            self._logger.error(f"Failed to create ban table: {e}")
 
-    def _execute_with_reconnect(self, operation, *args, **kwargs):
-        """Helper to execute database operations with automatic reconnection"""
-        try:
-            return operation(*args, **kwargs)
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
-                logger.info("Ban DB: server gone error, attempting recovery")
-                self.connect()
-                return operation(*args, **kwargs)
-            else:
-                raise
-
-    def add_ban(self, user_id: str, username: str, banned_by: str, duration: timedelta = None, reason: str = None):
+    def add_ban(
+        self,
+        user_id: str,
+        username: str,
+        banned_by: str,
+        duration: Optional[timedelta] = None,
+        reason: Optional[str] = None
+    ) -> Optional[datetime]:
         """
         Adds a ban to the database.
-        :param user_id: Discord user ID
-        :param username: Discord username (for display purposes)
-        :param banned_by: Admin who issued the ban
-        :param duration: timedelta for ban length, or None for permanent
-        :param reason: Optional reason for the ban
+
+        Args:
+            user_id: Discord user ID
+            username: Discord username (for display purposes)
+            banned_by: Admin who issued the ban
+            duration: timedelta for ban length, or None for permanent
+            reason: Optional reason for the ban
+
+        Returns:
+            The expiration datetime, or None for permanent bans
         """
-        def _do_add():
+        def _do_add() -> Optional[datetime]:
             banned_at = datetime.now()
             expires_at = banned_at + duration if duration else None
 
@@ -393,30 +355,30 @@ class BanDBManager:
             val = (str(user_id), username, banned_by, banned_at, expires_at, reason)
             self.my_cursor.execute(sql, val)
             self.db.commit()
-            logger.info(f"Added ban for user {username} (ID: {user_id}), expires: {expires_at}")
+            self._logger.info(f"Added ban for user {username} (ID: {user_id}), expires: {expires_at}")
             return expires_at
 
         return self._execute_with_reconnect(_do_add)
 
-    def remove_ban(self, user_id: str):
-        """Removes a ban from the database"""
-        def _do_remove():
+    def remove_ban(self, user_id: str) -> bool:
+        """Removes a ban from the database. Returns True if a ban was removed."""
+        def _do_remove() -> bool:
             sql = "DELETE FROM discord_bans WHERE user_id = %s"
             self.my_cursor.execute(sql, (str(user_id),))
             self.db.commit()
             affected = self.my_cursor.rowcount
-            logger.info(f"Removed ban for user ID: {user_id}, rows affected: {affected}")
+            self._logger.info(f"Removed ban for user ID: {user_id}, rows affected: {affected}")
             return affected > 0
 
         return self._execute_with_reconnect(_do_remove)
 
-    def is_banned(self, user_id: str):
+    def is_banned(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
         Checks if a user is currently banned.
         Returns ban info dict if banned, None if not banned.
         Automatically cleans up expired bans.
         """
-        def _do_check():
+        def _do_check() -> Optional[Dict[str, Any]]:
             sql = "SELECT user_id, username, banned_by, banned_at, expires_at, reason FROM discord_bans WHERE user_id = %s"
             self.my_cursor.execute(sql, (str(user_id),))
             result = self.my_cursor.fetchone()
@@ -444,9 +406,9 @@ class BanDBManager:
 
         return self._execute_with_reconnect(_do_check)
 
-    def list_bans(self):
+    def list_bans(self) -> List[Dict[str, Any]]:
         """Returns a list of all current bans (excluding expired ones)"""
-        def _do_list():
+        def _do_list() -> List[Dict[str, Any]]:
             # Clean up expired bans first
             cleanup_sql = "DELETE FROM discord_bans WHERE expires_at IS NOT NULL AND expires_at < %s"
             self.my_cursor.execute(cleanup_sql, (datetime.now(),))
@@ -473,41 +435,22 @@ class BanDBManager:
         return self._execute_with_reconnect(_do_list)
 
 
-class VersionDBManager:
+class VersionDBManager(BaseDBManager):
     """
     Manages version tracking for update notifications
     """
-    def __init__(self, db_host, db_username, db_password, database_name):
-        self.db = None
-        self.my_cursor = None
-
-        self.db_host = db_host
-        self.db_username = db_username
-        self.db_password = db_password
-        self.database_name = database_name
-
-        self.connect()
+    def __init__(
+        self,
+        db_host: str,
+        db_username: str,
+        db_password: str,
+        database_name: str,
+        logger: logging.Logger
+    ):
+        super().__init__(db_host, db_username, db_password, database_name, logger, "Version DB")
         self._create_table()
 
-    def connect(self):
-        """Connects to the database"""
-        try:
-            self.db = mysql.connector.connect(
-                host=self.db_host,
-                user=self.db_username,
-                password=self.db_password,
-                database=self.database_name
-            )
-            self.my_cursor = self.db.cursor()
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                logger.warning("Version DB: user name or password is bad")
-            elif e.errno == errorcode.ER_BAD_DB_ERROR:
-                logger.warning("Version DB: Database does not exist")
-            else:
-                logger.warning(f"Version DB: {e}")
-
-    def _create_table(self):
+    def _create_table(self) -> None:
         """Creates the version tracking table if it doesn't exist"""
         try:
             sql = """
@@ -520,25 +463,13 @@ class VersionDBManager:
             """
             self.my_cursor.execute(sql)
             self.db.commit()
-            logger.info("Version table verified/created")
+            self._logger.info("Version table verified/created")
         except mysql.connector.Error as e:
-            logger.error(f"Failed to create version table: {e}")
+            self._logger.error(f"Failed to create version table: {e}")
 
-    def _execute_with_reconnect(self, operation, *args, **kwargs):
-        """Helper to execute database operations with automatic reconnection"""
-        try:
-            return operation(*args, **kwargs)
-        except mysql.connector.Error as e:
-            if e.errno == errorcode.CR_SERVER_GONE_ERROR:
-                logger.info("Version DB: server gone error, attempting recovery")
-                self.connect()
-                return operation(*args, **kwargs)
-            else:
-                raise
-
-    def get_last_version(self):
+    def get_last_version(self) -> Optional[str]:
         """Gets the last notified version from the database"""
-        def _do_get():
+        def _do_get() -> Optional[str]:
             sql = "SELECT last_version FROM discord_version WHERE id = 1"
             self.my_cursor.execute(sql)
             result = self.my_cursor.fetchone()
@@ -546,9 +477,9 @@ class VersionDBManager:
 
         return self._execute_with_reconnect(_do_get)
 
-    def set_last_version(self, version: str):
+    def set_last_version(self, version: str) -> None:
         """Updates the last notified version in the database"""
-        def _do_set():
+        def _do_set() -> None:
             sql = """
                 INSERT INTO discord_version (id, last_version, last_updated)
                 VALUES (1, %s, %s)
@@ -558,14 +489,72 @@ class VersionDBManager:
             """
             self.my_cursor.execute(sql, (version, datetime.now()))
             self.db.commit()
-            logger.info(f"Version updated to {version}")
+            self._logger.info(f"Version updated to {version}")
 
         return self._execute_with_reconnect(_do_set)
 
-    def check_version_changed(self, current_version: str):
+    def check_version_changed(self, current_version: str) -> bool:
         """
         Checks if the version has changed since last notification.
         Returns True if this is a new version, False otherwise.
         """
         last_version = self.get_last_version()
         return last_version != current_version
+
+
+def add_to_json(filename: str, json_data: dict, tag: str, data: Any) -> None:
+    """Adds given data to a json file under the specified tag"""
+    with open(filename, "w") as file:
+        json_data[tag].append(data)
+        json.dump(json_data, file, indent=4)
+
+
+def parse_ban_duration(duration_str: str) -> Optional[timedelta]:
+    """
+    Parses a duration string into a timedelta.
+    Supports: Xm (minutes), Xh (hours), Xd (days), or 'x'/'permanent' for permanent bans.
+
+    Args:
+        duration_str: Duration string like "30m", "2h", "7d", or "permanent"
+
+    Returns:
+        timedelta for timed bans, None for permanent bans
+
+    Raises:
+        ValueError: For invalid formats
+    """
+    duration_str = duration_str.strip().lower()
+
+    # Check for permanent ban
+    if duration_str in ('x', 'permanent', 'perm', 'forever'):
+        return None
+
+    # Parse duration with regex
+    match = re.match(r'^(\d+)([mhd])$', duration_str)
+    if not match:
+        raise ValueError(f"Invalid duration format: {duration_str}. Use Xm, Xh, Xd, or 'x' for permanent.")
+
+    value = int(match.group(1))
+    unit = match.group(2)
+
+    if value <= 0:
+        raise ValueError("Duration must be a positive number.")
+
+    if unit == 'm':
+        return timedelta(minutes=value)
+    elif unit == 'h':
+        return timedelta(hours=value)
+    elif unit == 'd':
+        return timedelta(days=value)
+
+
+# Backward compatibility: expose settings attributes at module level
+def __getattr__(name: str) -> Any:
+    """Module-level attribute access for backward compatibility"""
+    if settings is None:
+        raise AttributeError(f"Settings not initialized. Call init() first.")
+
+    if name in ('info_json', 'token', 'logger', 'soundboard_db', 'ban_db', 'version_db'):
+        return getattr(settings, name)
+
+    raise AttributeError(f"module 'settings' has no attribute '{name}'")
