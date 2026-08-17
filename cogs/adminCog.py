@@ -50,13 +50,27 @@ def in_command_channel():
     return commands.check(predicate)
 
 
+# What to do when the ban list cannot be reached. Fail open: a soundboard for friends
+# should keep working through a database outage rather than locking everyone out.
+# Set to False to refuse every command instead while the database is down.
+ALLOW_COMMANDS_WHEN_DB_UNAVAILABLE = True
+
+
 def not_banned():
     """
     Check decorator that verifies the user is not banned from using the bot.
     Use this decorator on commands in other cogs to enforce bans.
     """
     async def predicate(ctx):
-        ban_info = settings.ban_db.is_banned(str(ctx.author.id))
+        try:
+            ban_info = settings.ban_db.is_banned(str(ctx.author.id))
+        except settings.DatabaseUnavailableError as e:
+            settings.logger.warning(
+                f"Ban check unavailable ({e}), "
+                f"{'allowing' if ALLOW_COMMANDS_WHEN_DB_UNAVAILABLE else 'refusing'} {ctx.command} from {ctx.author}")
+            if not ALLOW_COMMANDS_WHEN_DB_UNAVAILABLE:
+                await ctx.channel.send("The bot's database is unreachable, try again shortly.")
+            return ALLOW_COMMANDS_WHEN_DB_UNAVAILABLE
 
         if ban_info:
             if ban_info['permanent']:

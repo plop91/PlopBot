@@ -4,46 +4,33 @@ A Discord bot with an integrated soundboard and text to speech capabilities writ
 
 ## Setup
 
-Clone the repository and make a file named "info.json" containing the following with bold typed words replaced with relevant information.
+Clone the repository, then copy [info/blank_info.json](info/blank_info.json) to `info/info.json` and fill in
+the placeholder values:
 
-```json
-{
-  "token": "DISCORD_BOT_TOKEN",
-  "soundboard_database": {
-    "server_address": "DATABASE_ADDRESS",
-    "username": "DATABASE_USERNAME",
-    "password": "DATABASE_PASSWORD",
-    "database": "DATABASE_DATABASE"
-  },
-  "twitter": {
-    "apikey": "TWITTER_API_KEY",
-    "apisecret": "TWITTER_API_SECRET",
-    "accesstoken": "TWITTER_ACCESS_TOKEN",
-    "accesstokensecret": "TWITTER_TOKEN_SECRET"
-  },
-  "openai": {
-    "apikey": "OPENAI_API_KEY",
-    "text_gen_engine": "text-davinci-003"
-  },
-  "admins": [
-    "ADMIN1",
-    "ADMIN2"
-  ],
-  "command_channels": [
-    "bot_commands"
-  ],
-  "welcome_channels": [
-    "general"
-  ],
-  "welcome_messages": [
-    "hello"
-  ],
-  "status": [
-    "status1",
-    "status2"
-  ]
-}
+```sh
+cp info/blank_info.json info/info.json
 ```
+
+At minimum you need:
+
+| Key | What it is |
+| --- | --- |
+| `token` | Discord bot token |
+| `soundboard_database` | MySQL host, username, password and database name |
+| `admins` | Discord user IDs allowed to run admin commands |
+| `openai.apikey` | Only needed for the image and assistant commands |
+
+Everything else in the template is optional — Twitter credentials, welcome messages, the status rotation,
+and the channels used for command restrictions and version announcements.
+
+> **Keep `info/info.json` out of git.** It holds your bot token and database password. The root `.gitignore`
+> excludes `*.json` everywhere except `info/blank_info.json`, so your real config is ignored by default —
+> check with `git check-ignore -v info/info.json` if you are unsure. The bot itself never writes to this
+> file; anything it needs to persist goes to `info/runtime_data.json`.
+
+Requires **ffmpeg** on the host (already included in the Docker image), and MySQL for the ban, version and
+assistant features. The bot will start without a reachable database — the soundboard, TTS and YouTube
+playback all work regardless — and reconnects on its own once the database comes back.
 
 ## Run
 
@@ -80,7 +67,13 @@ docker run -d \
 
 ### Python
 
-Run the bot. If your json file uses a name other than json.info, you can specify it using --json. You can also override any of the database connection options by specifying them, otherwise they will be taken from the info.json file.
+Install the requirements, then run the bot. The config defaults to `info/info.json`; point `--json` at a
+different file to override it. The database connection options can also be overridden individually, otherwise
+they are taken from the config file.
+
+```sh
+pip install -r requirements.txt
+```
 
 ```sh
 python3 BotHead.py  [-h] [--json JSON] 

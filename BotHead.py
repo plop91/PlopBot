@@ -5,6 +5,7 @@ This is the main file for the bot.
 """
 import asyncio
 import os
+import traceback
 import discord
 from discord.ext import commands
 import argparse
@@ -27,11 +28,86 @@ class PlopBot(commands.Bot):
     async def setup_hook(self) -> None:
         """
         Setup hook for the bot, loads all cogs.
+
+        A cog that fails to load is skipped rather than taking the whole bot down with it;
+        an optional feature missing its configuration should cost you that feature, not the
+        soundboard. Failures are logged loudly and summarised once loading finishes.
         :return: None
         """
-        for f in os.listdir('./cogs'):
-            if f.endswith('.py'):
-                await self.load_extension(f'cogs.{f[:-3]}')
+        loaded, failed = [], []
+
+        for f in sorted(os.listdir('./cogs')):
+            if not f.endswith('.py'):
+                continue
+
+            extension = f'cogs.{f[:-3]}'
+            try:
+                await self.load_extension(extension)
+                loaded.append(extension)
+            except Exception as e:
+                failed.append(extension)
+                # The cause is more useful than the ExtensionFailed wrapper
+                cause = e.__cause__ or e
+                settings.logger.error(f"Could not load {extension}, continuing without it: "
+                                      f"{type(cause).__name__}: {cause}")
+                settings.logger.debug(traceback.format_exc())
+
+        settings.logger.info(f"Loaded {len(loaded)} cogs: {', '.join(c.split('.')[-1] for c in loaded)}")
+        if failed:
+            settings.logger.warning(f"{len(failed)} cog(s) unavailable: "
+                                    f"{', '.join(c.split('.')[-1] for c in failed)}")
+
+    async def on_command_error(self, ctx, error) -> None:
+        """
+        Reports command failures to the user rather than failing silently.
+
+        Without this, every cooldown, missing argument, permission problem and unhandled
+        exception is invisible to whoever ran the command.
+        :arg ctx: context of the command
+        :arg error: the exception that was raised
+        :return: None
+        """
+        try:
+            if isinstance(error, commands.CommandNotFound):
+                return
+
+            if isinstance(error, commands.NoPrivateMessage):
+                await ctx.send("That command only works in a server.")
+                return
+
+            # The check decorators (is_admin, not_banned, in_command_channel) already
+            # explain themselves to the user, so do not talk over them
+            if isinstance(error, commands.CheckFailure):
+                return
+
+            if isinstance(error, commands.CommandOnCooldown):
+                await ctx.send(f"That command is on cooldown, try again in {error.retry_after:.0f}s.")
+                return
+
+            if isinstance(error, commands.UserInputError):
+                await ctx.send(f"{error} Try `.help {ctx.command}`.")
+                return
+
+            # Unwrap the exception raised inside the command body
+            original = getattr(error, 'original', error)
+
+            if isinstance(original, settings.DatabaseUnavailableError):
+                settings.logger.error(f"{ctx.command} failed, database unavailable: {original}")
+                await ctx.send("The bot's database is unreachable, try again shortly.")
+                return
+
+            if isinstance(original, discord.Forbidden):
+                settings.logger.warning(f"{ctx.command} lacked a Discord permission: {original}")
+                return
+
+            settings.logger.error(
+                f"Unhandled error in {ctx.command} from {ctx.author}: "
+                f"{''.join(traceback.format_exception(type(original), original, original.__traceback__))}")
+            await ctx.send("Something went wrong running that command.")
+
+        except discord.HTTPException:
+            # Never let the error handler raise on its own
+            settings.logger.warning(f"Could not report an error for {ctx.command}: {traceback.format_exc()}")
 
     # @commands.command(brief="Admin only command: Load a Cog.")
     # async def load(self, ctx, extension):

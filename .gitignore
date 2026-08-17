@@ -134,7 +134,8 @@ dmypy.json
 .idea
 howto.txt
 *.docx
-#*.json
+*.json
+!info/blank_info.json
 *.mp3
 *.txt
 /texts/

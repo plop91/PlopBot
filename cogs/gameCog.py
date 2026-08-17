@@ -3,7 +3,6 @@ Game cog for the bot
 """
 import discord
 import settings
-from settings import add_to_json
 from discord.ext import commands
 import random
 from cogs.adminCog import not_banned
@@ -42,7 +41,19 @@ class Game(commands.Cog):
         :return: None
         """
         tag = tag.strip().lower()
-        add_to_json("info.json", settings.info_json, "scribble", tag)
+
+        try:
+            added = settings.append_runtime_data("scribble", tag)
+        except (OSError, ValueError) as e:
+            settings.logger.error(f"Could not add scribble word '{tag}': {e}")
+            await ctx.send("Could not save that word, check the bot logs.")
+            return
+
+        if added:
+            settings.logger.info(f"add_scribble from {ctx.author} : {tag}")
+        else:
+            await ctx.send(f"'{tag}' is already in the list.")
+
         await ctx.message.delete()
 
     @commands.command(pass_context=True, aliases=['list'],
@@ -55,16 +66,25 @@ class Game(commands.Cog):
         :arg ctx: Context of the command
         :return: None
         """
+        try:
+            scribbles = settings.load_runtime_data().get("scribble", [])
+        except (OSError, ValueError) as e:
+            settings.logger.error(f"Could not read scribble words: {e}")
+            await ctx.send("Could not read the word list, check the bot logs.")
+            return
+
         embed_var = discord.Embed(title="Scribble words", description="description", color=0x00ff00)
         s = ""
-        if len(settings.info_json["scribble"]) > 0:
-            for scribble in settings.info_json["scribble"]:
+        if len(scribbles) > 0:
+            for scribble in scribbles:
                 if len(s) + len(scribble) >= 1024:
                     embed_var.add_field(name="scribbles:", value=s, inline=False)
                     s = ""
                 s += scribble + ", "
             embed_var.add_field(name="scribbles:", value=s, inline=False)
             await ctx.channel.send(embed=embed_var)
+        else:
+            await ctx.send("No scribble words yet, add one with '.add <word>'")
         await ctx.message.delete()
 
     @commands.command(pass_context=True, aliases=['TEAMS'],

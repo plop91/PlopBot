@@ -9,6 +9,7 @@ from discord.errors import ClientException
 from discord.utils import get
 from gtts import gTTS
 import asyncio
+import io
 import os
 import random
 from yt_dlp import YoutubeDL
@@ -138,8 +139,9 @@ class Audio(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         """
-        This listener is to facilitate the ability to download a mp3 for use in the soundboard as well as
-        interprets webhook commands.
+        This listener facilitates the ability to download a mp3 for use in the soundboard.
+
+        It also used to interpret webhook commands from the website; that is disabled, see the note below.
         :arg: message: The message that was sent.
         :return: None
         """
@@ -184,38 +186,61 @@ class Audio(commands.Cog):
                             else:
                                 try:
                                     shutil.copy(f"./soundboard/raw/{filename}", f"./soundboard/{filename}")
+                                    self.sounds[filename.replace(".mp3", "").lower()] = f"./soundboard/{filename}"
                                     settings.soundboard_db.add_db_entry(filename.lower(),
                                                                         filename.replace(".mp3", "").lower())
-                                    self.sounds[filename.replace(".mp3", "").lower()] = f"./soundboard/{filename}"
+                                except settings.DatabaseUnavailableError:
+                                    # The soundboard plays from disk, so the clip works; only the
+                                    # database record is missing and verify_db will add it later.
+                                    await message.channel.send("The clip is ready to play. It could not be recorded "
+                                                               "in the database, that will sort itself out on the "
+                                                               "next maintenance run.")
+                                    settings.logger.warning(f"Could not register {filename} in the database")
                                 except ValueError:
                                     await message.channel.send("A file with that name already existed in the database, "
                                                                "contact an admin!")
                                     settings.logger.warning("a file with the same name exists in the database but not "
                                                             "on the server")
 
-            else:
-                # divide message as though it was a webhook command
-                data = message.content.split(':')
-                # check if it has a valid source
-                if data[0] == "www.sodersjerna.com":
-                    member = discord.utils.get(message.guild.members, name=data[1])
-                    if member is not None and member.voice is not None:
-                        for client in self.client.voice_clients:
-                            if client.channel.id == member.voice.channel.id:
-                                # Update activity for webhook commands
-                                self.update_activity(message.guild.id)
-                                if data[2] == "stop":
-                                    if client.is_playing():
-                                        client.stop()
-                                elif data[2] == "pause":
-                                    if client.is_playing():
-                                        client.pause()
-                                elif data[2] == "resume":
-                                    if client.is_paused():
-                                        client.resume()
-                                elif data[2] == "play":
-                                    await self.play_clip(message.channel, client, data[3])
-                    await message.delete()
+            # ----------------------------------------------------------------
+            # DISABLED 2026-08-17: website webhook control.
+            #
+            # DO NOT RE-ENABLE AS WRITTEN. The only thing identifying a message
+            # as coming from the website was the literal string
+            # "www.sodersjerna.com" at the start of the content, which any
+            # member could simply type. That let anyone puppet the bot into any
+            # voice channel a named user happened to be in.
+            #
+            # Before turning this back on it needs, at minimum:
+            #   - real authentication (check message.webhook_id, and/or pin it
+            #     to a dedicated channel and a known author id)
+            #   - bounds checks on data[1..3]; any message starting with the
+            #     prefix currently raises IndexError
+            #   - a guard for message.guild being None in DMs
+            # ----------------------------------------------------------------
+            # else:
+            #     # divide message as though it was a webhook command
+            #     data = message.content.split(':')
+            #     # check if it has a valid source
+            #     if data[0] == "www.sodersjerna.com":
+            #         member = discord.utils.get(message.guild.members, name=data[1])
+            #         if member is not None and member.voice is not None:
+            #             for client in self.client.voice_clients:
+            #                 if client.channel.id == member.voice.channel.id:
+            #                     # Update activity for webhook commands
+            #                     self.update_activity(message.guild.id)
+            #                     if data[2] == "stop":
+            #                         if client.is_playing():
+            #                             client.stop()
+            #                     elif data[2] == "pause":
+            #                         if client.is_playing():
+            #                             client.pause()
+            #                     elif data[2] == "resume":
+            #                         if client.is_paused():
+            #                             client.resume()
+            #                     elif data[2] == "play":
+            #                         await self.play_clip(message.channel, client, data[3])
+            #         await message.delete()
 
     async def play_clip(self, text_channel, voice_channel, filename):
         """
@@ -297,41 +322,40 @@ class Audio(commands.Cog):
         :return: None
         """
         settings.logger.info(f"play from {ctx.author} :{filename}")
-        if ctx.author not in settings.info_json["blacklist"]:
-            if filename is None:
-                embed_var = discord.Embed(title="Soundboard files",
-                                          description="type '.play ' or '.p' followed by a name to play "
-                                                      "file", color=0x00ff00)
-                s = ""
-                field_index = 0
-                for file in self.sounds.keys():
-                    settings.logger.info(f"DEBUG: field_index: {field_index}")
-                    if len(s) + len(file) >= 1024 and field_index > 3:
-                        settings.logger.info(f"DEBUG: SENDING MESSAGE")
-                        await ctx.channel.send(embed=embed_var)
-                        field_index = 0
-                        embed_var = discord.Embed(title="Soundboard files",
-                                                  description="type '.play ' or '.p' followed by a name to play "
-                                                              "file", color=0x00ff00)
-                        s = ""
+        # Bans are enforced by the @not_banned() decorator above. The check that used to be
+        # here compared a Member against a list of strings, so it was always true, and it
+        # raised KeyError on any config without a "blacklist" key.
+        if filename is None:
+            embed_var = discord.Embed(title="Soundboard files",
+                                      description="type '.play ' or '.p' followed by a name to play "
+                                                  "file", color=0x00ff00)
+            s = ""
+            field_index = 0
+            for file in self.sounds.keys():
+                if len(s) + len(file) >= 1024 and field_index > 3:
+                    await ctx.channel.send(embed=embed_var)
+                    field_index = 0
+                    embed_var = discord.Embed(title="Soundboard files",
+                                              description="type '.play ' or '.p' followed by a name to play "
+                                                          "file", color=0x00ff00)
+                    s = ""
 
-                    elif len(s) + len(file) >= 1024:
-                        embed_var.add_field(name="play from a filename:", value=s, inline=False)
-                        field_index += 1
-                        s = ""
-                    s += file + ", "
+                elif len(s) + len(file) >= 1024:
+                    embed_var.add_field(name="play from a filename:", value=s, inline=False)
+                    field_index += 1
+                    s = ""
+                s += file + ", "
 
-                embed_var.add_field(name="play from a filename:", value=s, inline=False)
+            embed_var.add_field(name="play from a filename:", value=s, inline=False)
 
-                embed_var.add_field(name="play a random file:", value="random", inline=False)
+            embed_var.add_field(name="play a random file:", value="random", inline=False)
 
-                settings.logger.info(f"DEBUG: SENDING REAL MESSAGE")
-                await ctx.channel.send(embed=embed_var)
+            await ctx.channel.send(embed=embed_var)
 
-                await ctx.message.delete()
-                return
+            await ctx.message.delete()
+            return
 
-            await self.play_clip(ctx, ctx.voice_client, filename)
+        await self.play_clip(ctx, ctx.voice_client, filename)
         await ctx.message.delete()
 
     @commands.command(pass_context=True,
@@ -523,18 +547,38 @@ class Audio(commands.Cog):
         if os.path.isfile(filepath):
             await ctx.channel.send(sound, file=discord.File(filepath))
 
+    @staticmethod
+    def generate_tts(text):
+        """
+        Renders text to an in-memory mp3. Blocking, call it in an executor.
+        :arg text: text to render
+        :return: BytesIO positioned at the start of the audio
+        """
+        buffer = io.BytesIO()
+        gTTS(text).write_to_fp(buffer)
+        buffer.seek(0)
+        return buffer
+
     @commands.command(aliases=['SAY'],
-                      brief="",
-                      description="")
+                      brief="Speaks the given text in the voice channel.",
+                      description="Reads the given text aloud in your voice channel using text to speech. "
+                                  "For example '.say hello everyone'. The audio is generated on the fly and is "
+                                  "not saved to the soundboard.")
     @not_banned()
-    async def say(self, ctx, text, *, tts_file='say'):
+    async def say(self, ctx, *, text=None):
         """
         Say the given string in the audio channel using TTS.
+
+        The audio is generated in memory and streamed straight to ffmpeg, so nothing is written to disk
+        and the soundboard is left alone.
         :arg ctx: context of the message
         :arg text: text to say
-        :arg tts_file: file to save the TTS to
         :return: None
         """
+        if not text:
+            await ctx.send("Give me something to say: '.say <text>'")
+            return
+
         settings.logger.info(f"say from {ctx.author} text:{text}")
         self.update_activity(ctx.guild.id)
         text = text.strip().lower()
@@ -545,8 +589,36 @@ class Audio(commands.Cog):
             await ctx.send(f"Text too long. Max {MAX_TTS_LENGTH} characters allowed")
             return
 
-        gTTS(text).save(os.path.join("soundboard", tts_file + '.mp3'))
-        await self.play_clip(ctx, ctx.voice_client, tts_file)
+        # gTTS makes a network request and writes synchronously, keep it off the event loop
+        loop = asyncio.get_event_loop()
+        try:
+            buffer = await loop.run_in_executor(None, self.generate_tts, text)
+        except Exception:
+            settings.logger.warning(f"TTS generation failed: {traceback.format_exc()}")
+            await ctx.send("Could not generate that clip.")
+            return
+
+        source = discord.PCMVolumeTransformer(
+            discord.FFmpegPCMAudio(buffer, pipe=True, **ffmpeg_options), volume=self.volume)
+
+        try:
+            ctx.voice_client.play(source)
+        except ClientException as e:
+            settings.logger.warning(f"Could not play tts clip: {e}")
+            await ctx.send("Already playing something, try again in a moment.")
+            return
+
+        if ctx.guild.id in self.ghost_message:
+            try:
+                await self.ghost_message[ctx.guild.id].delete()
+            except discord.HTTPException:
+                pass
+
+        embed_var = discord.Embed(title="Say Command",
+                                  description=f"Saying: {text}",
+                                  color=0xffff00)
+        self.ghost_message[ctx.guild.id] = await ctx.channel.send(embed=embed_var)
+
         await ctx.message.delete()
 
     @play.before_invoke

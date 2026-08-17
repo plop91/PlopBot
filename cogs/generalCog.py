@@ -2,7 +2,6 @@
 This cog contains the general commands for the bot.
 """
 from discord.ext import commands, tasks
-from settings import add_to_json
 import settings
 import discord
 import random
@@ -29,10 +28,29 @@ class General(commands.Cog):
         :return: None
         """
         settings.logger.info(f"general cog ready!")
+
+        # Announce the running build via its codename before the hourly rotation
+        # takes over, so the devs can see what is deployed on startup
+        await self.set_version_codename_presence()
+
         self.change_status.start()
 
         # Check for version update and notify if changed
         await self.check_and_notify_version_update()
+
+    async def set_version_codename_presence(self):
+        """
+        Sets the bot presence to the codename of the running version
+        :return: None
+        """
+        codename = settings.get_version_codename()
+
+        if codename == settings.UNKNOWN_VERSION_CODENAME:
+            settings.logger.warning(
+                f"No codename for version {settings.VERSION}, add one to VERSION_CODENAMES in settings.py")
+
+        settings.logger.info(f"Setting startup presence to codename for version {settings.VERSION}")
+        await self.client.change_presence(status=discord.Status.online, activity=discord.Game(codename))
 
     async def check_and_notify_version_update(self):
         """
@@ -135,21 +153,6 @@ class General(commands.Cog):
         for channel in member.guild.channels:
             if str(channel) in settings.info_json["welcome_channels"]:
                 await channel.send(f"""{random.choice(settings.info_json["welcome_messages"])} {member.mention}?""")
-
-    @commands.command(brief="Change the bot presence to the argument string.")
-    @not_banned()
-    async def echo(self, ctx, tag):
-        """
-        Changes the bot status in discord and adds the status to list of usable statuses
-        :arg ctx: Context of the command
-        :arg tag: tag to add
-        :return: None
-        """
-        settings.logger.info(f"echo from {ctx.author} : {tag}")
-        if tag:
-            await self.client.change_presence(status=discord.Status.online, activity=discord.Game(tag))
-            add_to_json("info.json", settings.info_json, "status", tag)
-            await ctx.message.delete()
 
     @commands.command()
     @not_banned()

@@ -24,7 +24,7 @@
   },
   "openai": {
     "apikey": "OPENAI_API_KEY",
-    "text_gen_engine": "gpt-4"
+    "text_gen_engine": "gpt-5.6-luna"
   },
   "servers": {
     "SERVERNAME": 12345

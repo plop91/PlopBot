@@ -24,9 +24,15 @@ class Twitter(commands.Cog):
         """
         self.client = client
 
-        self.auth = OAuthHandler(settings.info_json["twitter"]["apikey"], settings.info_json["twitter"]["apisecret"])
-        self.auth.set_access_token(settings.info_json["twitter"]["accesstoken"],
-                                   settings.info_json["twitter"]["accesstokensecret"])
+        twitter_config = settings.info_json.get("twitter", {})
+        required = ("apikey", "apisecret", "accesstoken", "accesstokensecret")
+        missing = [key for key in required if not twitter_config.get(key)]
+        if missing:
+            raise RuntimeError(f"config is missing twitter.{', twitter.'.join(missing)}, "
+                               f"the twitter commands are unavailable")
+
+        self.auth = OAuthHandler(twitter_config["apikey"], twitter_config["apisecret"])
+        self.auth.set_access_token(twitter_config["accesstoken"], twitter_config["accesstokensecret"])
         self.auth_api = API(self.auth)
 
     @commands.Cog.listener()

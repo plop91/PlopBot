@@ -1,25 +1,29 @@
 """
-This cog is for generating images and text using openai
-"""
-import time
+This cog is for generating images and chatting with assistants using openai.
 
+Assistants are personalities stored in our own database; the instructions are
+sent with every request and the conversation history is kept by OpenAI via the
+Conversations API. The Assistants API this used to be built on is removed on
+2026-08-26.
+"""
 import discord
 import settings
 from discord.ext import commands
-from openai import OpenAI as Oai, BadRequestError
+from openai import AsyncOpenAI, BadRequestError, NotFoundError, OpenAIError
 import wget
 import os
-import textwrap
-from PIL import Image
 import json
-import asyncio
+from PIL import Image
 
-from db.openai_database_manager import OpenAIDatabaseManager
-from cogs.adminCog import not_banned
-
-global logger
+from cogs.adminCog import not_banned, is_admin
 
 BLACKLIST_FILE = "openai_blacklist.json"
+
+# Model used for chat. Override with openai.text_gen_engine in info.json.
+DEFAULT_CHAT_MODEL = "gpt-5.6-luna"
+
+# Discord rejects messages over 2000 characters, leave room for formatting
+MAX_MESSAGE_LENGTH = 1900
 
 
 def load_blacklist():
@@ -55,9 +59,43 @@ def blacklisted(user):
     return str(user).strip().lower() in blacklist
 
 
+def chunk_message(text, limit=MAX_MESSAGE_LENGTH):
+    """
+    Splits text into Discord sized pieces, breaking on line boundaries where possible
+    :param text: text to split
+    :param limit: maximum size of each piece
+    :return: list of strings
+    """
+    if not text:
+        return []
+
+    chunks = []
+    current = ""
+
+    for line in text.split("\n"):
+        # A single line too long to send has to be hard split
+        while len(line) > limit:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(line[:limit])
+            line = line[limit:]
+
+        if len(current) + len(line) + 1 > limit:
+            chunks.append(current)
+            current = line
+        else:
+            current = f"{current}\n{line}" if current else line
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
 class OpenAI(commands.Cog):
     """
-    This cog is for generating images and text using openai
+    This cog is for generating images and chatting with assistants using openai
     """
 
     def __init__(self, client):
@@ -66,24 +104,14 @@ class OpenAI(commands.Cog):
         :param client: Client object
         """
         self.client = client
-        self.api_key = settings.info_json["openai"]["apikey"]
-        # openai.api_key = self.api_key
-        self.openai_client = Oai(api_key=self.api_key)
 
-        # self.db_manager = OpenAIDatabaseManager(
-        #     settings.info_json["openai"]["db_host"],
-        #     settings.info_json["openai"]["db_username"],
-        #     settings.info_json["openai"]["db_password"],
-        #     settings.info_json["openai"]["database_name"]
-        # )
-        #
-        # try:
-        #     self.db_manager.connect()
-        # except Exception as e:
-        #     settings.logger.warning(f"Error connecting to openai database: {e}")
+        openai_config = settings.info_json.get("openai", {})
+        self.api_key = openai_config.get("apikey")
+        if not self.api_key:
+            raise RuntimeError("no openai.apikey in the config file, the openai commands are unavailable")
 
-        self.active_assistants = {}
-        self.active_threads = {}
+        self.openai_client = AsyncOpenAI(api_key=self.api_key)
+        self.model = openai_config.get("text_gen_engine", DEFAULT_CHAT_MODEL)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -91,7 +119,45 @@ class OpenAI(commands.Cog):
         Logs that the cog was loaded properly
         :return: None
         """
-        settings.logger.info(f"openai cog ready!")
+        settings.logger.info(f"openai cog ready! chat model: {self.model}")
+
+    async def send_chunked(self, ctx, text):
+        """
+        Sends a possibly long message as several Discord messages
+        :param ctx: Context
+        :param text: text to send
+        :return: None
+        """
+        for chunk in chunk_message(text):
+            await ctx.send(chunk)
+
+    async def start_conversation(self, guild_id, name):
+        """
+        Creates a new OpenAI conversation and stores it against the assistant
+        :param guild_id: Guild the assistant belongs to
+        :param name: Name of the assistant
+        :return: The new conversation id
+        """
+        conversation = await self.openai_client.conversations.create()
+        settings.assistant_db.set_conversation_id(guild_id, name, conversation.id)
+        settings.logger.info(f"Started conversation {conversation.id} for assistant '{name}' in guild {guild_id}")
+        return conversation.id
+
+    async def end_conversation(self, conversation_id):
+        """
+        Deletes a conversation on OpenAI, ignoring one that is already gone
+        :param conversation_id: Conversation to delete
+        :return: None
+        """
+        if not conversation_id:
+            return
+
+        try:
+            await self.openai_client.conversations.delete(conversation_id)
+        except NotFoundError:
+            pass
+        except OpenAIError as e:
+            settings.logger.warning(f"Could not delete conversation {conversation_id}: {e}")
 
     @commands.command(pass_context=True, aliases=["genimg", "genimage", "gen_image"],
                       brief="generate an image from a prompt using openai")
@@ -109,7 +175,7 @@ class OpenAI(commands.Cog):
             prompt = ' '.join(args)
             settings.logger.info(f"generating image")
             try:
-                response = self.openai_client.images.generate(
+                response = await self.openai_client.images.generate(
                     model="dall-e-3",
                     prompt=prompt,
                     size="1024x1024",
@@ -120,15 +186,10 @@ class OpenAI(commands.Cog):
                 image_filename = wget.download(image_url)
                 await ctx.send(file=discord.File(image_filename))
                 os.remove(image_filename)
-                # TODO: add to database
             except BadRequestError as e:
-                """
-                openai.BadRequestError: Error code: 400 - {'error': {'code': 'content_policy_violation', 'message': 'Your request was rejected as a result of our safety system. Your prompt may contain text that is not allowed by our safety system.', 'param': None, 'type': 'invalid_request_error'}}
-                """
-                if e.code == 400:
-                    if e.code == "content_policy_violation":
-                        await ctx.send("Your prompt was rejected by OpenAI's safety system due to content policy violation")
-                        return
+                if e.code == "content_policy_violation":
+                    await ctx.send("Your prompt was rejected by OpenAI's safety system due to content policy violation")
+                    return
                 raise e
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
@@ -160,43 +221,22 @@ class OpenAI(commands.Cog):
             png.save("temp.png", 'png', quality=100)
             settings.logger.info(f"editing image")
             with open("temp.png", "rb") as image_file:
-                response = self.openai_client.images.create_variation(
+                response = await self.openai_client.images.create_variation(
                     image=image_file,
                     n=1,
                     size="1024x1024"
                 )
             os.remove("temp.png")
-            image_url = response['data'][0]['url']
+            image_url = response.data[0].url
             image_filename = wget.download(image_url)
             await ctx.send(file=discord.File(image_filename))
             os.remove(image_filename)
-
-            # todo: add to database
         else:
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
 
-    async def get_updated_assistants(self, ctx):
-        """
-        Get the updated assistants from openai
-        :return: None
-        """
-        guild = ctx.guild.id
-        my_assistants = self.openai_client.beta.assistants.list(
-            order="desc",
-            limit=100
-        )
-        if guild not in self.active_assistants:
-            self.active_assistants[guild] = {}
-        for assistant in my_assistants.data:
-            name = assistant.name
-            if name in self.active_assistants[guild]:
-                if assistant.id != self.active_assistants[guild][name].id:
-                    self.active_assistants[guild][name] = assistant
-            else:
-                self.active_assistants[guild][name] = assistant
-
     @commands.command(pass_context=True, aliases=["la", "listassistants"],
                       brief="Prints the list of existing assistants")
+    @commands.guild_only()
     @not_banned()
     async def list_assistants(self, ctx):
         """
@@ -204,301 +244,160 @@ class OpenAI(commands.Cog):
         :arg ctx: Context
         :return: None
         """
-        if not blacklisted(ctx.author):
-
-            await ctx.typing()
-
-            await self.get_updated_assistants(ctx)
-
-            guild = ctx.guild.id
-            if guild in self.active_assistants:
-                await ctx.send("Current active assistants: " + ", ".join(list(self.active_assistants[guild].keys())))
-        else:
+        if blacklisted(ctx.author):
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
+            return
+
+        names = settings.assistant_db.list_assistants(ctx.guild.id)
+
+        if not names:
+            await ctx.send("No assistants yet, create one with '.cra <name> <personality>'")
+            return
+
+        await ctx.send("Current assistants: " + ", ".join(names))
 
     @commands.command(pass_context=True, aliases=["cra", "createassistant"],
-                      brief="Create an assistant from a prompt using openai")
+                      brief="Create an assistant with the given personality")
     @commands.cooldown(1, 60, commands.BucketType.user)
+    @commands.guild_only()
     @not_banned()
-    async def create_assistant(self, ctx, name, *args):
+    async def create_assistant(self, ctx, name, *, instructions=None):
         """
-        Create an assistant from a prompt using openai
+        Create an assistant with the given personality
         :arg ctx: Context
         :arg name: Name of the assistant
-        :arg args: Arguments
+        :arg instructions: The personality, sent as instructions on every message
         :return: None
         """
-        if not blacklisted(ctx.author):
-
-            await ctx.typing()
-
-            await self.get_updated_assistants(ctx)
-
-            guild = ctx.guild.id
-            # TODO: check if the assistant already exists on openai
-            if guild in self.active_assistants:
-                if name in self.active_assistants[guild]:
-                    await ctx.send(f"Assistant {name} already exists")
-                    return
-
-            # functions = os.listdir("../openAI_functions/")
-            # ctx.send(f"functions: {functions}")
-
-            # TODO: add all the functions to the assistant
-            tools = [{"type": "code_interpreter"}, {"type": "retrieval"}]
-
-            functions = os.listdir("openAI_functions/")
-            for function in functions:
-                if function.endswith(".json"):
-                    try:
-                        with open(f"openAI_functions/{function}", "r") as file:
-                            data = file.read()
-                            if data:
-                                tools.append(json.loads(data))
-                    except FileNotFoundError as e:
-                        settings.logger.warning(f"File not found: {e}")
-                    except Exception as e:
-                        settings.logger.warning(f"Error loading function: {e}")
-
-            # generate tool notifications
-            notification = ""
-            for tool in tools:
-                if tool["type"] == "code_interpreter":
-                    notification += "Code interpreter tool added\n"
-                elif tool["type"] == "retrieval":
-                    notification += "Retrieval tool added\n"
-                elif tool["type"] == "function":
-                    notification += f"Function tool added: {tool['function']['name']}\n"
-                else:
-                    notification += "Unknown tool!!!!!\n"
-
-            prompt = ' '.join(args)  # the prompt used to initialize the assistant
-
-            settings.logger.info(f"creating assistant")
-            assistant = self.openai_client.beta.assistants.create(
-                name=name,
-                instructions=prompt,
-                tools=tools,
-                model="gpt-4-turbo-preview"
-            )
-            # if an assistant already exists for this guild
-            if guild in self.active_assistants:
-                self.active_assistants[guild][name] = assistant
-            else:
-                self.active_assistants[guild] = {name: assistant}
-
-            await ctx.send(f"Assistant {name} created with tools:\n{notification}")
-        else:
+        if blacklisted(ctx.author):
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
+            return
 
-    async def handle_tool_call(self, ctx, run, thread_id):
-        """
-        Handles the tool call for the assistant
-        :param ctx: Context
-        :param run: Run object
-        :param thread_id: Thread id
-        """
-        if run.required_action.submit_tool_outputs:
-            if run.required_action.submit_tool_outputs.tool_calls:
-                outputs = []
-                for tool_call in run.required_action.submit_tool_outputs.tool_calls:
-                    try:
-                        # await ctx.send(f"{tool_call}")
-                        if tool_call.function.name == "get_weather":
-                            # await ctx.send(f"get weather tool call args: {tool_call.function.arguments}")
-                            # TODO: actually get the weather
-                            # send 20 degrees celsius
-                            output = {
-                                "tool_call_id": tool_call.id,
-                                "output": "20C"
-                            }
-                            outputs.append(output)
-                        elif tool_call.function.name == "get_chat_history":
-                            chat_history = []
-                            async for message in ctx.channel.history(limit=200):
-                                chat_history.append(message)
-                            count = 0
-                            chat = ""
-                            for message in chat_history:
-                                if count >= 20:
-                                    break
-                                if message.content and message.author != self.client.user:
-                                    chat += message.author.name + ": " + message.content + "\n"
-                                    count += 1
-                            output = {
-                                "tool_call_id": tool_call.id,
-                                "output": chat
-                            }
-                            outputs.append(output)
+        if not instructions:
+            await ctx.send("Give the assistant a personality: '.cra <name> <personality>'")
+            return
 
-                        elif tool_call.function.name == "get_users_voice":
-                            await ctx.send(f"tool call {tool_call.function.name} not implemented yet")
-                            output = {
-                                "tool_call_id": tool_call.id,
-                                "output": " ".join([])
-                            }
-                            outputs.append(output)
+        created = settings.assistant_db.add_assistant(
+            guild_id=ctx.guild.id,
+            name=name,
+            instructions=instructions,
+            created_by=str(ctx.author)
+        )
 
-                        elif tool_call.function.name == "get_users_text":
-                            members = ctx.channel.members
-                            online_members = []
-                            for member in members:
-                                if member.status == discord.Status.online:
-                                    online_members.append(member.name)
-                            output = {
-                                "tool_call_id": tool_call.id,
-                                "output": " ".join(online_members)
-                            }
-                            outputs.append(output)
+        if not created:
+            await ctx.send(f"Assistant {name} already exists")
+            return
 
-                        elif tool_call.function.name == "get_soundboard_names":
-                            audio = self.client.get_cog('Audio')
-                            output = {
-                                "tool_call_id": tool_call.id,
-                                "output": " ".join(audio.sounds)
-                            }
-                            outputs.append(output)
-
-                        elif tool_call.function.name == "play_soundboard":
-                            audio = self.client.get_cog('Audio')
-                            sound = tool_call.function.arguments
-                            if sound in audio.sounds:
-                                audio.play(ctx, sound)
-                            else:
-                                await ctx.send(f"Sound {sound} not found")
-
-                        # get bot usage
-                        # get player stats
-                        else:
-                            await ctx.send(f"tool call {tool_call.function.name} not recognized")
-                    except Exception as e:
-                        await ctx.send(f"Error: {e}")
-                try:
-                    self.openai_client.beta.threads.runs.submit_tool_outputs(
-                        thread_id=thread_id,
-                        run_id=run.id,
-                        tool_outputs=outputs
-                    )
-                except Exception as e:
-                    await ctx.send(f"Error: {e}")
+        await ctx.send(f"Assistant {name} created. Talk to it with '.ca {name} <message>'")
 
     @commands.command(pass_context=True, aliases=["ca", "chatassistant"],
                       brief="chat with an assistant using openai")
     @commands.cooldown(1, 60, commands.BucketType.user)
+    @commands.guild_only()
     @not_banned()
-    async def chat_assistant(self, ctx, name, *args):
+    async def chat_assistant(self, ctx, name, *, message=None):
         """
         Chat with an assistant using openai
         :arg ctx: Context
         :arg name: Name of the assistant
-        :arg args: Arguments
+        :arg message: What to say to the assistant
         :return: None
         """
-        if not blacklisted(ctx.author):
-            await ctx.typing()
-
-            await self.get_updated_assistants(ctx)
-
-            guild = ctx.guild.id
-            prompt = ' '.join(args)
-            # check if assistant exists
-            if ctx.guild.id not in self.active_assistants:
-                await ctx.send(f"Assistant {name} does not exist")
-                return
-
-            if name not in self.active_assistants[guild]:
-                await ctx.send(f"Assistant {name} does not exist")
-                return
-
-            assistant = self.active_assistants[guild][name]
-            thread = self.openai_client.beta.threads.create()
-            if guild in self.active_threads:
-                if name not in self.active_threads[guild]:
-                    self.active_threads[guild][name] = thread
-            else:
-                self.active_threads[guild] = {name: thread}
-
-            thread_id = self.active_threads[guild][name].id
-            self.openai_client.beta.threads.messages.create(
-                thread_id=thread_id,
-                role="user",
-                content=prompt
-            )
-            run = self.openai_client.beta.threads.runs.create(
-                thread_id=thread_id,
-                assistant_id=assistant.id
-            )
-            start_time = run.created_at
-            while True:
-                run = self.openai_client.beta.threads.runs.retrieve(
-                    thread_id=thread_id,
-                    run_id=run.id
-                )
-
-                current_time = time.time()
-                if current_time - start_time > 60:
-                    # TODO: if the assistant times out, deduct from the user's usage, then cancel the run
-                    await ctx.send("Assistant time out - cancelling")
-                    run = self.openai_client.beta.threads.runs.cancel(
-                        thread_id=thread_id,
-                        run_id=run.id
-                    )
-                    if run.status == "cancelling" or run.status == "cancelled":
-                        await ctx.send("Assistant run cancelled")
-                    else:
-                        await ctx.send("Error cancelling assistant run")
-                    return
-
-                if run.status == "completed":
-                    break
-                elif run.status == "queued":
-                    pass
-                elif run.status == "in_progress":
-                    pass
-                elif run.status == "failed":
-                    await ctx.send("Assistant failed")
-                    return
-                elif run.status == "expired":
-                    await ctx.send("Assistant expired")
-                    return
-                elif run.status == "requires_action":
-                    await self.handle_tool_call(ctx, run, thread_id)
-                elif run.status == "cancelled":
-                    await ctx.send("Assistant cancelled")
-                    return
-                elif run.status == "cancelling":
-                    await ctx.send("Assistant cancelling")
-                    return
-                else:
-                    await ctx.send(f"{run.status} not recognized")
-                    return
-                await asyncio.sleep(2)
-
-            messages = self.openai_client.beta.threads.messages.list(
-                thread_id=thread_id
-            )
-
-            for content in messages.data[0].content:
-                # break up long messages
-                if content.type == "text":
-                    for line in textwrap.wrap(f"{name} says: {content.text.value}", 1024):
-                        await ctx.send(line)
-                # retrieve image file
-                else:
-                    image_data = self.openai_client.files.content(content.image_file.file_id)
-                    image_data_bytes = image_data.read()
-
-                    image_filename = "./my-image.png"
-                    with open(image_filename, "wb") as file:
-                        file.write(image_data_bytes)
-                        await ctx.send(file=discord.File(image_filename))
-                        os.remove(image_filename)
-
-        else:
+        if blacklisted(ctx.author):
             settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
+            return
 
-    # TODO: add upload file for retrieval tool
-    # TODO: add ability to add functions to the assistant on the fly
+        if not message:
+            await ctx.send(f"Say something to the assistant: '.ca {name} <message>'")
+            return
+
+        assistant = settings.assistant_db.get_assistant(ctx.guild.id, name)
+        if not assistant:
+            await ctx.send(f"Assistant {name} does not exist")
+            return
+
+        async with ctx.typing():
+            conversation_id = assistant['conversation_id']
+            if not conversation_id:
+                conversation_id = await self.start_conversation(ctx.guild.id, name)
+
+            try:
+                try:
+                    response = await self.openai_client.responses.create(
+                        model=self.model,
+                        instructions=assistant['instructions'],
+                        input=message,
+                        conversation=conversation_id
+                    )
+                except NotFoundError:
+                    # The conversation is gone on OpenAI's side, start a fresh one
+                    settings.logger.info(f"Conversation {conversation_id} missing, starting a new one")
+                    conversation_id = await self.start_conversation(ctx.guild.id, name)
+                    response = await self.openai_client.responses.create(
+                        model=self.model,
+                        instructions=assistant['instructions'],
+                        input=message,
+                        conversation=conversation_id
+                    )
+            except OpenAIError as e:
+                settings.logger.error(f"Assistant '{name}' failed: {e}")
+                await ctx.send(f"{name} could not answer, check the bot logs.")
+                return
+
+        reply = response.output_text
+        if not reply:
+            await ctx.send(f"{name} had nothing to say.")
+            return
+
+        await self.send_chunked(ctx, f"{name} says: {reply}")
+
+    @commands.command(pass_context=True, aliases=["forget", "resetassistant"],
+                      brief="Clear an assistant's memory of the conversation so far")
+    @commands.guild_only()
+    @not_banned()
+    async def reset_assistant(self, ctx, name):
+        """
+        Clears the conversation history of an assistant, keeping its personality
+        :arg ctx: Context
+        :arg name: Name of the assistant
+        :return: None
+        """
+        if blacklisted(ctx.author):
+            settings.logger.info(f"User {ctx.author} is blacklisted from AI cog!")
+            return
+
+        assistant = settings.assistant_db.get_assistant(ctx.guild.id, name)
+        if not assistant:
+            await ctx.send(f"Assistant {name} does not exist")
+            return
+
+        await self.end_conversation(assistant['conversation_id'])
+        settings.assistant_db.set_conversation_id(ctx.guild.id, name, None)
+
+        settings.logger.info(f"{ctx.author} reset the conversation for assistant '{name}'")
+        await ctx.send(f"{name} has forgotten the conversation so far.")
+
+    @commands.command(pass_context=True, aliases=["dela", "deleteassistant"],
+                      brief="Admin only command: Delete an assistant")
+    @commands.guild_only()
+    @is_admin()
+    async def delete_assistant(self, ctx, name):
+        """
+        Deletes an assistant and the conversation attached to it
+        :arg ctx: Context
+        :arg name: Name of the assistant
+        :return: None
+        """
+        assistant = settings.assistant_db.get_assistant(ctx.guild.id, name)
+        if not assistant:
+            await ctx.send(f"Assistant {name} does not exist")
+            return
+
+        await self.end_conversation(assistant['conversation_id'])
+        settings.assistant_db.remove_assistant(ctx.guild.id, name)
+
+        settings.logger.info(f"Assistant '{name}' deleted by {ctx.author}")
+        await ctx.send(f"Assistant {name} deleted.")
 
     @commands.command(pass_context=True, aliases=["openai_ban_user", "openai_banuser", "obu"],
                       brief="Ban a user from using the openai cog")

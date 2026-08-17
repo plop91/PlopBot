@@ -2,7 +2,20 @@
 Settings file for the bot, contains json data, databases and logging.
 """
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
+
+# Internal release codenames. The startup presence is set to the codename for the
+# running VERSION so the devs can tell what is deployed at a glance without the
+# version number being meaningful to anyone else. Add an entry per release.
+VERSION_CODENAMES = {
+    "0.0.1": "0.0.1",
+    "0.0.2": "0.0.2",
+    "0.0.3": "Finally fixed it",
+}
+
+# Presence used when VERSION has no codename entry yet (i.e. someone bumped
+# VERSION and forgot to add a codename).
+UNKNOWN_VERSION_CODENAME = "unreleased"
 
 import argparse
 import mysql.connector
@@ -14,10 +27,15 @@ import re
 import json
 import logging
 import os
+import tempfile
 
 
 # Module-level settings instance (initialized by init())
 settings: Optional["Settings"] = None
+
+# Mutable data the bot writes at runtime. Kept separate from info.json so that a
+# runtime write can never touch the file holding the token and credentials.
+RUNTIME_DATA_FILE = os.path.join("info", "runtime_data.json")
 
 
 @dataclass
@@ -29,6 +47,7 @@ class Settings:
     soundboard_db: "SoundboardDBManager"
     ban_db: "BanDBManager"
     version_db: "VersionDBManager"
+    assistant_db: "AssistantDBManager"
 
 
 def _setup_logging() -> tuple[logging.Logger, logging.Logger]:
@@ -77,7 +96,10 @@ def _get_db_config(args: argparse.Namespace, info_json: dict) -> dict:
     }
 
 
-def _init_databases(db_config: dict, logger: logging.Logger) -> tuple["SoundboardDBManager", "BanDBManager", "VersionDBManager"]:
+def _init_databases(
+    db_config: dict,
+    logger: logging.Logger
+) -> tuple["SoundboardDBManager", "BanDBManager", "VersionDBManager", "AssistantDBManager"]:
     """Initializes all database managers"""
     soundboard_db = SoundboardDBManager(
         db_host=db_config['host'],
@@ -100,7 +122,35 @@ def _init_databases(db_config: dict, logger: logging.Logger) -> tuple["Soundboar
         database_name=db_config['database'],
         logger=logger
     )
-    return soundboard_db, ban_db, version_db
+    assistant_db = AssistantDBManager(
+        db_host=db_config['host'],
+        db_username=db_config['username'],
+        db_password=db_config['password'],
+        database_name=db_config['database'],
+        logger=logger
+    )
+    return soundboard_db, ban_db, version_db, assistant_db
+
+
+def _migrate_runtime_data(info_json: dict, logger: logging.Logger) -> None:
+    """
+    Seeds the runtime data file from the config file the first time it is needed.
+
+    Scribble words used to be appended to info.json itself; this carries any
+    existing words over so they are not lost. The config file is left untouched.
+    """
+    if os.path.exists(RUNTIME_DATA_FILE):
+        return
+
+    legacy_scribbles = info_json.get("scribble", [])
+    if not legacy_scribbles:
+        return
+
+    try:
+        _write_json_atomic(RUNTIME_DATA_FILE, {"scribble": list(legacy_scribbles)})
+        logger.info(f"Migrated {len(legacy_scribbles)} scribble words to {RUNTIME_DATA_FILE}")
+    except OSError as e:
+        logger.error(f"Could not migrate scribble words to {RUNTIME_DATA_FILE}: {e}")
 
 
 def init(args: argparse.Namespace) -> None:
@@ -113,11 +163,14 @@ def init(args: argparse.Namespace) -> None:
     # Load configuration
     info_json, token = _load_config(args.json)
 
+    # Move any mutable data out of the config file and into the runtime data file
+    _migrate_runtime_data(info_json, bot_logger)
+
     # Get database configuration
     db_config = _get_db_config(args, info_json)
 
     # Initialize databases
-    soundboard_db, ban_db, version_db = _init_databases(db_config, bot_logger)
+    soundboard_db, ban_db, version_db, assistant_db = _init_databases(db_config, bot_logger)
 
     # Create settings instance
     settings = Settings(
@@ -126,8 +179,18 @@ def init(args: argparse.Namespace) -> None:
         logger=bot_logger,
         soundboard_db=soundboard_db,
         ban_db=ban_db,
-        version_db=version_db
+        version_db=version_db,
+        assistant_db=assistant_db
     )
+
+
+class DatabaseUnavailableError(Exception):
+    """
+    Raised when an operation cannot be completed because the database is unreachable.
+
+    Callers get this instead of an AttributeError on a None cursor, so they can decide
+    whether to degrade or report the failure.
+    """
 
 
 class BaseDBManager:
@@ -157,10 +220,25 @@ class BaseDBManager:
         self._logger = logger
         self._name = name
 
-        self.connect()
+        # A database that is down at startup must not stop the bot from running; the
+        # connection is retried on first use instead.
+        try:
+            self.connect()
+        except DatabaseUnavailableError as e:
+            self._logger.error(f"{self._name}: starting without a connection ({e}), will retry on first use")
+
+    @property
+    def connected(self) -> bool:
+        """True if this manager currently holds a usable cursor"""
+        return self.my_cursor is not None
 
     def connect(self) -> None:
-        """Connects to the database"""
+        """
+        Connects to the database and prepares its schema.
+
+        Raises:
+            DatabaseUnavailableError: if the connection could not be established
+        """
         try:
             self.db = mysql.connector.connect(
                 host=self.db_host,
@@ -170,21 +248,53 @@ class BaseDBManager:
             )
             self.my_cursor = self.db.cursor()
         except mysql.connector.Error as e:
+            self.db = None
+            self.my_cursor = None
+
             if e.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                self._logger.warning(f"{self._name}: username or password is bad")
+                reason = "username or password is bad"
             elif e.errno == errorcode.ER_BAD_DB_ERROR:
-                self._logger.warning(f"{self._name}: Database does not exist")
+                reason = "database does not exist"
             else:
-                self._logger.warning(f"{self._name}: {e}")
+                reason = str(e)
+
+            self._logger.warning(f"{self._name}: {reason}")
+            raise DatabaseUnavailableError(f"{self._name}: {reason}") from e
+
+        # Runs on every successful connect, so a table missed while the server was
+        # down still gets created once it comes back
+        self._create_table()
+
+    def _create_table(self) -> None:
+        """Creates the tables this manager needs. No-op unless a subclass needs one."""
+
+    def _ensure_connection(self) -> None:
+        """
+        Makes sure a cursor is available, reconnecting if needed.
+
+        Raises:
+            DatabaseUnavailableError: if the database still cannot be reached
+        """
+        if not self.connected:
+            self._logger.info(f"{self._name}: no connection, attempting to reconnect")
+            self.connect()
 
     def _execute_with_reconnect(self, operation: Callable[[], Any], *args, **kwargs) -> Any:
-        """Helper to execute database operations with automatic reconnection"""
+        """
+        Helper to execute database operations with automatic reconnection
+
+        Raises:
+            DatabaseUnavailableError: if the database is unreachable
+        """
+        self._ensure_connection()
+
         try:
             return operation(*args, **kwargs)
         except mysql.connector.Error as e:
             # Handle both CR_SERVER_GONE_ERROR (2006) and CR_SERVER_LOST (2013)
             if e.errno == errorcode.CR_SERVER_GONE_ERROR or e.errno == self.CR_SERVER_LOST:
                 self._logger.info(f"{self._name}: connection lost (error {e.errno}), attempting recovery")
+                self.my_cursor = None
                 self.connect()
                 return operation(*args, **kwargs)
             else:
@@ -250,7 +360,7 @@ class SoundboardDBManager(BaseDBManager):
 
         try:
             db_files = self.list_db_files()
-        except mysql.connector.Error as e:
+        except (mysql.connector.Error, DatabaseUnavailableError) as e:
             self._logger.error(f"Database error while verifying: {e}")
             return
 
@@ -279,7 +389,7 @@ class SoundboardDBManager(BaseDBManager):
 
         except OSError as e:
             self._logger.error(f"File system error while verifying db: {e}")
-        except mysql.connector.Error as e:
+        except (mysql.connector.Error, DatabaseUnavailableError) as e:
             self._logger.error(f"Database error while verifying db: {e}")
 
 
@@ -296,7 +406,6 @@ class BanDBManager(BaseDBManager):
         logger: logging.Logger
     ):
         super().__init__(db_host, db_username, db_password, database_name, logger, "Ban DB")
-        self._create_table()
 
     def _create_table(self) -> None:
         """Creates the ban table if it doesn't exist"""
@@ -448,7 +557,6 @@ class VersionDBManager(BaseDBManager):
         logger: logging.Logger
     ):
         super().__init__(db_host, db_username, db_password, database_name, logger, "Version DB")
-        self._create_table()
 
     def _create_table(self) -> None:
         """Creates the version tracking table if it doesn't exist"""
@@ -502,11 +610,189 @@ class VersionDBManager(BaseDBManager):
         return last_version != current_version
 
 
-def add_to_json(filename: str, json_data: dict, tag: str, data: Any) -> None:
-    """Adds given data to a json file under the specified tag"""
-    with open(filename, "w") as file:
-        json_data[tag].append(data)
-        json.dump(json_data, file, indent=4)
+class AssistantDBManager(BaseDBManager):
+    """
+    Manages assistant personalities and the OpenAI conversation attached to each.
+
+    Personalities used to live on OpenAI's servers as Assistant objects. The
+    Assistants API is removed on 2026-08-26, so they are stored here instead and
+    the instructions are passed on every request. Only the conversation id is
+    held remotely.
+    """
+    def __init__(
+        self,
+        db_host: str,
+        db_username: str,
+        db_password: str,
+        database_name: str,
+        logger: logging.Logger
+    ):
+        super().__init__(db_host, db_username, db_password, database_name, logger, "Assistant DB")
+
+    def _create_table(self) -> None:
+        """Creates the assistant table if it doesn't exist"""
+        try:
+            sql = """
+                CREATE TABLE IF NOT EXISTS discord_assistants (
+                    guild_id VARCHAR(255) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    instructions TEXT,
+                    created_by VARCHAR(255),
+                    created_at DATETIME,
+                    conversation_id VARCHAR(255) NULL,
+                    PRIMARY KEY (guild_id, name)
+                )
+            """
+            self.my_cursor.execute(sql)
+            self.db.commit()
+            self._logger.info("Assistant table verified/created")
+        except mysql.connector.Error as e:
+            self._logger.error(f"Failed to create assistant table: {e}")
+
+    def add_assistant(self, guild_id: str, name: str, instructions: str, created_by: str) -> bool:
+        """
+        Stores a new assistant personality.
+
+        Returns:
+            True if it was created, False if one with that name already exists
+        """
+        def _do_add() -> bool:
+            sql = """
+                INSERT INTO discord_assistants (guild_id, name, instructions, created_by, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            val = (str(guild_id), name, instructions, created_by, datetime.now())
+            self.my_cursor.execute(sql, val)
+            self.db.commit()
+            self._logger.info(f"Created assistant '{name}' in guild {guild_id} for {created_by}")
+            return True
+
+        try:
+            return self._execute_with_reconnect(_do_add)
+        except mysql.connector.errors.IntegrityError:
+            return False
+
+    def get_assistant(self, guild_id: str, name: str) -> Optional[Dict[str, Any]]:
+        """Returns the assistant with the given name, or None if it does not exist"""
+        def _do_get() -> Optional[Dict[str, Any]]:
+            sql = """
+                SELECT guild_id, name, instructions, created_by, created_at, conversation_id
+                FROM discord_assistants WHERE guild_id = %s AND name = %s
+            """
+            self.my_cursor.execute(sql, (str(guild_id), name))
+            result = self.my_cursor.fetchone()
+
+            if not result:
+                return None
+
+            return {
+                'guild_id': result[0],
+                'name': result[1],
+                'instructions': result[2],
+                'created_by': result[3],
+                'created_at': result[4],
+                'conversation_id': result[5],
+            }
+
+        return self._execute_with_reconnect(_do_get)
+
+    def list_assistants(self, guild_id: str) -> List[str]:
+        """Returns the names of every assistant in the given guild"""
+        def _do_list() -> List[str]:
+            sql = "SELECT name FROM discord_assistants WHERE guild_id = %s ORDER BY created_at"
+            self.my_cursor.execute(sql, (str(guild_id),))
+            return [row[0] for row in self.my_cursor.fetchall()]
+
+        return self._execute_with_reconnect(_do_list)
+
+    def remove_assistant(self, guild_id: str, name: str) -> bool:
+        """Deletes an assistant. Returns True if one was deleted."""
+        def _do_remove() -> bool:
+            sql = "DELETE FROM discord_assistants WHERE guild_id = %s AND name = %s"
+            self.my_cursor.execute(sql, (str(guild_id), name))
+            self.db.commit()
+            affected = self.my_cursor.rowcount
+            self._logger.info(f"Removed assistant '{name}' from guild {guild_id}, rows affected: {affected}")
+            return affected > 0
+
+        return self._execute_with_reconnect(_do_remove)
+
+    def set_conversation_id(self, guild_id: str, name: str, conversation_id: Optional[str]) -> None:
+        """Stores the OpenAI conversation id an assistant is currently using"""
+        def _do_set() -> None:
+            sql = "UPDATE discord_assistants SET conversation_id = %s WHERE guild_id = %s AND name = %s"
+            self.my_cursor.execute(sql, (conversation_id, str(guild_id), name))
+            self.db.commit()
+
+        self._execute_with_reconnect(_do_set)
+
+
+def get_version_codename(version: Optional[str] = None) -> str:
+    """Returns the release codename for the given version (defaults to the running one)"""
+    return VERSION_CODENAMES.get(version or VERSION, UNKNOWN_VERSION_CODENAME)
+
+
+def _write_json_atomic(filename: str, payload: dict) -> None:
+    """
+    Writes json to a file atomically.
+
+    The payload is serialized to a temporary file in the same directory and then
+    moved into place, so an interrupted or failed write can never leave the
+    destination truncated or half-written.
+    """
+    directory = os.path.dirname(filename) or "."
+    os.makedirs(directory, exist_ok=True)
+
+    handle, temp_path = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w") as file:
+            json.dump(payload, file, indent=4)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temp_path, filename)
+    except BaseException:
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+        raise
+
+
+def load_runtime_data(filename: str = RUNTIME_DATA_FILE) -> dict:
+    """
+    Loads the runtime data file.
+
+    Returns an empty dict if the file does not exist yet. A corrupt file raises
+    rather than being silently overwritten, so the existing data is not lost.
+    """
+    if not os.path.exists(filename):
+        return {}
+
+    with open(filename, "r") as file:
+        return json.load(file)
+
+
+def append_runtime_data(tag: str, data: Any, filename: str = RUNTIME_DATA_FILE) -> bool:
+    """
+    Appends an entry to a list in the runtime data file.
+
+    Args:
+        tag: The key of the list to append to, created if it does not exist
+        data: The entry to append
+        filename: Runtime data file to write to
+
+    Returns:
+        True if the entry was added, False if it was already present
+    """
+    runtime_data = load_runtime_data(filename)
+    entries = runtime_data.setdefault(tag, [])
+
+    if data in entries:
+        return False
+
+    entries.append(data)
+    _write_json_atomic(filename, runtime_data)
+    return True
 
 
 def parse_ban_duration(duration_str: str) -> Optional[timedelta]:
@@ -554,7 +840,7 @@ def __getattr__(name: str) -> Any:
     if settings is None:
         raise AttributeError(f"Settings not initialized. Call init() first.")
 
-    if name in ('info_json', 'token', 'logger', 'soundboard_db', 'ban_db', 'version_db'):
+    if name in ('info_json', 'token', 'logger', 'soundboard_db', 'ban_db', 'version_db', 'assistant_db'):
         return getattr(settings, name)
 
     raise AttributeError(f"module 'settings' has no attribute '{name}'")
